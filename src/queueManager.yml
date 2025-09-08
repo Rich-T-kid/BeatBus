@@ -1,0 +1,211 @@
+openapi: '3.0.3'
+info:
+  title: API Title
+  description: BeatBus api Spec (draft)
+  version: '1.0'
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Rooms
+    description: Room related endpoints, Create,Delete rooms, End Rooms, Only the host can interact with these endpoints
+  - name: Queue
+    description: Queue related endpoints, Manage queue positions, Skip tracks
+  - name: Host
+    description: Host related endpoints, Only the host can interact with these endpoints
+  - name: Metrics
+    description: metrics related endpoints, Like/Dislike songs, Get most liked songs of session, send most liked songs to users, send liked songs to users number. Mr.put on user with most liked songs
+
+paths:
+  /Rooms/{roomId}:
+    get:
+      tags:
+        - Rooms
+      summary: Join a room by ID
+      description: Join a specific room using its ID, This is what the user does when they enter a room code on the front end
+      responses:
+        '200':
+          description: Successful Response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /Rooms:
+    post:
+      tags:
+        - Rooms
+        - Host
+      summary: Create a room
+      description: Create a room with settings such as max users, isPublic, allowGuests, and set the room name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomCreate'
+      responses:
+        '201':
+          description: Room Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSuccessfulResponse'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    put:
+      tags:
+        - Rooms
+        - Host
+      summary: Update Room Settings
+      description: Update the settings of a room,max users, isPublic, remove guest from your rooms
+      responses:
+        '200':
+          description: Room Updated Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    delete:
+      tags:
+        - Rooms
+        - Host
+      summary: Delete a room
+      description: Delete a room, only the host can delete the room, kicks everyone out of the room. Returns the user with most liked songs in the session. (Mr put on)
+      responses:
+        '204':
+          description: Room Deleted Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+  /Queues/{roomID}/playlist:
+    post:
+      tags:
+        - Queue
+      summary: Add a song to the queue
+      description: Add a song to the queue, if the song is already in the queue, it will not be added again
+      responses:
+        '200':
+          description: Song Added Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    get:
+      tags:
+        - Queue
+      summary: Get the current queue
+      description: Get the current queue of songs in the room
+      responses:
+        '200':
+          description: Successful Response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    put:
+      tags:
+        - Queue
+        - Host
+      summary: Reorder the queue, (handles skips)
+      description: Reorder the queue by providing a new order of song IDs, This is only for the host. This will be heavily related to the front end. front end must keep the queue order and allow only the host to change the visible order and then send that updated version the backend, Only host and the user who added the song to the queue can skip it
+      responses:
+        '200':
+          description: Queue Reordered Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+  /Metrics/{roomID}:
+    get:
+      tags:
+        - Metrics
+      summary: Get metrics about the entire session so far
+      description: In depth metrics about the entire session so far, most liked songs, most disliked songs, user with most liked songs, user with most disliked songs. generates a report for each song played (who played it, likes and dislikes)
+      responses:
+        '200':
+          description: Successful Response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Metrics
+      summary: Send Like/Dislike for current song
+      description: Send a like or dislike for a song, This will update the like/dislike count for the song
+      responses:
+        '200':
+          description: Like/Dislike Sent Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+  /Metrics/{roomID}/playlist/send:
+    post:
+      tags:
+        - Metrics
+        - Host
+      summary: Send playlist to select users in the room
+      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                users:
+                  type: array
+                  items:
+                    type: string
+                  description: List of user IDs or emails to send the playlist to.
+                type:
+                  type: string
+                  enum: [all, liked]
+                whom:
+                  type: string
+                  enum: [all, stayedToEnd]
+                  description: 'Specify "all" for the entire playlist or "liked" for most liked songs.'
+      responses:
+        '200':
+          description: Playlist sent successfully
+        '207':
+          description: Partial Success - Some users may not have received the playlist (TBD needs more detail for each users as to why it didnt succeed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: array
+                    items:
+                      type: string
+                    description: List of users who successfully received the playlist.
+                  failed:
+                    type: array
+                    items:
+                      type: string
+                    description: List of users who did not receive the playlist.
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RoomCreate:
+      type: object
+      # todo
+    RoomSuccessfulResponse:
+      type: object
+      # todo
