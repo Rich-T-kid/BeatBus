@@ -23,6 +23,7 @@ paths:
           name: roomPassword
           schema:
             type: string
+            example: mySecretPassword
           description: The password for the room, if the room 
       tags:
         - Rooms
@@ -101,9 +102,11 @@ paths:
               properties:
                 hostId:
                   type: string
+                  example: hostUser123
                   description: The ID of the user who is the host of the room.
                 roomId:
                   type: string
+                  example: 49ca9550ce2e0d
                   description: The ID of the room to delete.
       responses:
         '200':
@@ -137,12 +140,15 @@ paths:
               properties:
                 songName:
                   type: string
+                  example: Bohemian Rhapsody
                   description: The name of the song to add to the queue.
                 artistName:
                   type: string
+                  example: Queen
                   description: The name of the artist of the song to add to the queue.
                 addedBy:
                   type: string
+                  example: user123
                   description: The ID of the user who is adding the song to the queue.
       responses:
         '200':
@@ -193,6 +199,7 @@ paths:
               properties:
                 newOrder:
                   type: array
+                  example: [ "song:ID:12345", "song:ID:67890", "song:ID:54321" ]
                   items:
                     type: string
                   description: An array of song IDs representing the new order of the queue.
@@ -280,20 +287,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                users:
-                  type: array
-                  items:
-                    type: string
-                  description: List of user IDs or emails to send the playlist to.
-                type:
-                  type: string
-                  enum: [all, liked]
-                whom:
-                  type: string
-                  enum: [all, stayedToEnd]
-                  description: 'Specify "all" for the entire playlist or "liked" for most liked songs.'
+              $ref: '#/components/schemas/PlaylistSendResponse'
       responses:
         '200':
           description: Playlist sent successfully
@@ -306,10 +300,12 @@ paths:
                 properties:
                   success:
                     type: array
+                    example: [ "user123", "user456" ]
                     items:
                       type: string
                     description: List of users who successfully received the playlist.
                   failed:
+                    example: [ "user789" ]
                     type: array
                     items:
                       type: string
@@ -352,12 +348,15 @@ components:
       properties:
         roomName:
           type: string
+          example: flamingos Palace
           description: The name of the room.
         lifeTime:
           type: integer
+          example: 60
           description: The lifetime of the room in minutes.
         maxUsers:
           type: integer
+          example: 100
           description: The maximum number of users allowed in the room.
         isPublic:
           type: boolean
@@ -371,6 +370,7 @@ components:
           $ref: '#/components/schemas/RoomProperties'
         timeStamp:
           type: string
+          example: '2023-10-05T14:48:00.000Z'
           format: date-time
           description: The timestamp when the room was created.
 
@@ -380,18 +380,23 @@ components:
       properties:
         roomId:
           type: string
+          example: 49ca9550ce2e0d 
           description: The unique identifier for the room.
         roomPassword:
           type: string
+          example: mySecretPassword
           description: The password for the room, users will need this to join if the Room
         hostId:
           type: string
+          example: hostUser123
           description: The ID of the user who is the host of the room.
         roomName:
           type: string
+          example: flamingos Palace
           description: The name of the room.
         maxUsers:
           type: integer
+          example: 100
           description: The maximum number of users allowed in the room.
         isPublic:
           type: boolean
@@ -403,15 +408,19 @@ components:
       properties:
         title:
           type: string
+          example: Bohemian Rhapsody
           description: The title of the song.
         artist:
           type: string
+          example: Queen
           description: The artist of the song.
         album:
           type: string
+          example: A Night at the Opera
           description: The album of the song.
         duration:
           type: integer
+          example: 354
           description: The duration of the song in seconds.
       required:
         - title
@@ -423,12 +432,15 @@ components:
       properties:
         addedBy:
           type: string
+          example: user123
           description: The ID of the user who added the song to the queue.
         likes:
           type: integer
+          example: 100
           description: The number of likes the song has received.
         dislikes:
           type: integer
+          example: 5
           description: The number of dislikes the song has received.
 
 
@@ -438,6 +450,7 @@ components:
       properties:
         songId:
           type: string
+          example: song:ID:12345
           description: The unique identifier for the song. this is for internal use more than anything else
         stats:
           $ref: '#/components/schemas/SongStats' 
@@ -460,15 +473,19 @@ components:
           description: List of the most disliked songs in the session.
         userWithMostLikes:
           type: string
+          example: user123
           description: The ID of the user with the most liked songs.
         userWithMostDislikes:
           type: string
+          example: user456
           description: The ID of the user with the most disliked songs.
         roomsize:
           type: integer
+          example: 5
           description: The number of users currently in the room.
         queueLength:
           type: integer
+          example: 10
           description: The number of songs currently in the queue.
       required:
         - mostLikedSongs
@@ -477,5 +494,26 @@ components:
         - userWithMostDislikes
         - roomsize
         - queueLength
-
-   
+    PlaylistSendResponse:
+      type: object
+      properties:
+        success:
+          type: array
+          example: [ "user123", "user456" ]
+          items:
+            type: string
+          description: List of users who successfully received the playlist.
+        failed:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                example: user789
+                description: The ID of the user who did not receive the playlist.
+              reason:
+                type: string
+                example: "User is not registered to receive the notification through sms/email"
+                description: The reason why the user did not receive the playlist.
+          description: List of users who did not receive the playlist.
