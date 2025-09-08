@@ -4,6 +4,7 @@
     Host can provide rules (max users,number of songs a person can play back to back,ect)
 (2) users can join room through QR code (GET /Rooms{roomID}) the room password is built into the QR code
     On request it checks for this room password to be present otherwise request will fail
+    Users who join a room must provide their name atleast, they could also provide their number is they want to recieve the songs at the end of the session
 (3) All Room request will need to be made by the user who created the room or else they wont work
     This includes all request under the Host tag
     host can see the live room metrics under GET /Metrics/{roomID} 
@@ -12,3 +13,7 @@
     Users can only skip their own songs, Host can skip anyones songs
     Over the course of the song each user can either like or dislike the song. This goes towards the room metrics (Mr put on/winner)
     only the Host can reorder the entire queue at once
+(5) Once the Host ends the session using DELETE /Rooms Server metrics are displayed to the host
+    Mr.Put on is displayed to everyone in the chat
+    Host can push out the (all/liked) songs out to the users that joined his room at (the end/any point) in the session
+    users at the end will have the option to add a number to send the playlist stats to
