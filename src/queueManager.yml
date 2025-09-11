@@ -7,16 +7,78 @@ servers:
   - url: http://localhost:8080
 tags:
   - name: Rooms
-    description: Room related endpoints, Create,Delete rooms, End Rooms, Only the host can interact with these endpoints
+    description: Room related endpoints, Create,Delete rooms, End Rooms, 
   - name: Queue
     description: Queue related endpoints, Manage queue positions, Skip tracks
   - name: Host
     description: Host related endpoints, Only the host can interact with these endpoints
   - name: Metrics
     description: metrics related endpoints, Like/Dislike songs, Get most liked songs of session, send most liked songs to users, send liked songs to users number. Mr.put on user with most liked songs
+  - name: Authentication
+    description: Authentication related endpoints, Login, Register, Refresh token
 
 paths:
-  /Rooms/{roomId}:
+  /signUp:
+    post:
+      tags:
+        - Authentication
+      summary: User Registration
+      description: Register a new user by providing a username, email, and password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: 
+                  type: string
+                  example: user123
+                  description: The desired username for the new user.
+                password:
+                  type: string
+                  format: email
+                  example: secretepassword
+                  description: The password for the new user.
+      responses:
+          '201':
+            description: User registered successfully
+          '400':
+            description: Bad Request - Invalid input data
+          '409':
+            description: Conflict - Username or email already exists
+  /logIn:
+    post:
+      tags:
+        - Authentication
+      summary: User Login
+      description: Log in an existing user by providing a username and password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: user123
+                  description: The username of the user.
+                password:
+                  type: string
+                  example: secretepassword
+                  description: The password of the user.
+      responses:
+        '200':
+          description: User logged in successfully
+        '400':
+          description: Bad Request - Invalid input data
+        '401':
+          description: Unauthorized - Invalid username or password
+
+
+
+  /rooms/{roomId}:
     get:
       parameters:
         - in: query
@@ -24,7 +86,7 @@ paths:
           schema:
             type: string
             example: mySecretPassword
-          description: The password for the room, if the room 
+          description: The password for the room, 
       tags:
         - Rooms
       summary: Join a room by ID
@@ -36,7 +98,7 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
-  /Rooms:
+  /rooms:
     post:
       tags:
         - Rooms
@@ -125,7 +187,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /Queues/{roomID}/playlist:
+  /queues/{roomID}/playlist:
     post:
       tags:
         - Queue
@@ -226,7 +288,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /Metrics/{roomID}:
+  /metrics/{roomID}:
     get:
       tags:
         - Metrics
@@ -275,7 +337,7 @@ paths:
         '429':
           description: Too Many Requests - Rate limit exceeded (dont spam the like/dislike button)
 
-  /Metrics/{roomID}/playlist/send:
+  /metrics/{roomID}/playlist/send:
     post:
       tags:
         - Metrics
@@ -314,7 +376,7 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
-  /Metrics/{roomID}/History:
+  /metrics/{roomID}/history:
     get:
       tags:
         - Metrics
@@ -329,6 +391,48 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/SongObject'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /rooms/{roomid}/state:
+    get:
+      parameters:
+          - in: query
+            name: roomPassword
+            schema:
+              type: string
+              example: mySecretPassword
+            description: The password for the room, if the room is private.
+      tags:
+        - Rooms
+      summary: Get the current state of the room
+      description: Get the current state of the room, including number of users, current song playing, likes/dislikes for the current song, and room settings, this will be a websocket that is constantly updated
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roomId:
+                    type: string
+                    example: 49ca9550ce2e0d
+                    description: The unique identifier for the room.
+                  nowPlaying:
+                    $ref: '#/components/schemas/SongObject'
+                  queue:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SongObject'
+                    description: The current queue of songs in the room.
+                  numberOfUsers:
+                    type: integer
+                    example: 5
+                    description: The number of users currently in the room.
+                  roomSettings:
+                    $ref: '#/components/schemas/RoomCreate'
         '400':
           description: Bad Request
         '401':
