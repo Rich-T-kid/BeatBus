@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket Test</title>
+</head>
+<body>
+  <h2>WebSocket Test Client</h2>
+  <div id="log"></div>
+
+  <script>
+    const log = (msg) => {
+      const div = document.getElementById("log");
+      div.innerHTML += msg + "<br>";
+    };
+
+    // Connect to WebSocket server
+    const socket = new WebSocket("ws://localhost:8080/ws");
+
+    socket.onopen = () => {
+      log("✅ Connected to WebSocket server");
+      // Send a test message
+      socket.send("Hello from client!");
+    };
+
+    socket.onmessage = (event) => {
+      log("📩 Message from server: " + event.data);
+    };
+
+    socket.onerror = (error) => {
+      log("❌ WebSocket error: " + error);
+    };
+
+    socket.onclose = () => {
+      log("🔌 Connection closed");
+    };
+  </script>
+</body>
+</html>

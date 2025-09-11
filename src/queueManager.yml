@@ -1,0 +1,673 @@
+openapi: '3.0.3'
+info:
+  title: API Title
+  description: BeatBus api Spec (draft)
+  version: '1.0'
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Rooms
+    description: Room related endpoints, Create,Delete rooms, End Rooms, 
+  - name: Queue
+    description: Queue related endpoints, Manage queue positions, Skip tracks
+  - name: Host
+    description: Host related endpoints, Only the host can interact with these endpoints
+  - name: Metrics
+    description: metrics related endpoints, Like/Dislike songs, Get most liked songs of session, send most liked songs to users, send liked songs to users number. Mr.put on user with most liked songs
+  - name: Authentication
+    description: Authentication related endpoints, Login, Register, Refresh token
+
+paths:
+  /signUp:
+    post:
+      tags:
+        - Authentication
+      summary: User Registration
+      description: Register a new user by providing a username, email, and password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: 
+                  type: string
+                  example: user123
+                  description: The desired username for the new user.
+                password:
+                  type: string
+                  format: email
+                  example: secretepassword
+                  description: The password for the new user.
+      responses:
+          '201':
+            description: User registered successfully
+          '400':
+            description: Bad Request - Invalid input data
+          '409':
+            description: Conflict - Username or email already exists
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: User Login
+      description: Log in an existing user by providing a username and password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: user123
+                  description: The username of the user.
+                password:
+                  type: string
+                  example: secretepassword
+                  description: The password of the user.
+      responses:
+        '200':
+          description: User logged in successfully
+        '400':
+          description: Bad Request - Invalid input data
+        '401':
+          description: Unauthorized - Invalid username or password
+
+  /refresh:
+    get:
+      tags:
+        - Authentication
+      summary: Token Refresh
+      description: Refresh the authentication token using a valid refresh token.
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
+      responses:
+        '200':
+          description: Token refreshed successfully
+        '400':
+          description: Bad Request - Invalid input data
+        '401':
+          description: Unauthorized - Invalid or expired refresh token
+
+  /rooms/{roomId}:
+    get:
+      parameters:
+        - in: query
+          name: roomPassword
+          schema:
+            type: string
+            example: mySecretPassword
+          description: The password for the room, 
+      tags:
+        - Rooms
+      summary: Join a room by ID
+      description: Join a specific room using its ID, This is what the user does when they enter a room code on the front end
+      responses:
+        '200':
+          description: Successful Response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /rooms:
+    post:
+      tags:
+        - Rooms
+        - Host
+      summary: Create a room
+      description: Create a room with settings such as max users, isPublic, allowGuests, and set the room name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                room:
+                  $ref: '#/components/schemas/RoomCreate'
+                accessToken:
+                  $ref: '#/components/schemas/JWT_AccessToken' 
+      responses:
+        '201':
+          description: Room Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSuccessfulResponse'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '409':
+          description: Conflict - Room with the same name already exists
+        '429':
+          description: Too many requests - Rate limit exceeded
+    put:
+      tags:
+        - Rooms
+        - Host
+      summary: Update Room Settings
+      description: Update the settings of a room,max users, isPublic, remove guest from your rooms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomCreate'
+      responses:
+        '200':
+          description: Room Updated Successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSuccessfulResponse'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    delete:
+      tags:
+        - Rooms
+        - Host
+      summary: Delete a room
+      description: Delete a room, only the host can delete the room, kicks everyone out of the room. Returns the user with most liked songs in the session. (Mr put on)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accessToken:
+                  type : string
+                  description: The access token of the host user.
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+                hostId:
+                  type: string
+                  example: hostUser123
+                  description: The ID of the user who is the host of the room.
+                roomId:
+                  type: string
+                  example: 49ca9550ce2e0d
+                  description: The ID of the room to delete.
+      responses:
+        '200':
+          description: Room Deleted Successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  MrPutOn:
+                    type: string
+                    example: richard123
+                    description: The ID of the user with the most liked songs in the session.
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+  /queues/{roomID}/playlist:
+    post:
+      tags:
+        - Queue
+      summary: Add a song to the queue
+      description: Add a song to the queue, if the song is already in the queue, it will not be added again
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                songName:
+                  type: string
+                  example: Bohemian Rhapsody
+                  description: The name of the song to add to the queue.
+                artistName:
+                  type: string
+                  example: Queen
+                  description: The name of the artist of the song to add to the queue.
+                addedBy:
+                  type: string
+                  example: user123
+                  description: The ID of the user who is adding the song to the queue.
+      responses:
+        '200':
+          description: Song Added Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    get:
+      tags:
+        - Queue
+      summary: Get the current queue
+      description: Get the current queue of songs in the room
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    song:
+                      $ref: '#/components/schemas/SongObject'
+                    alreadyPlayed:
+                      type: boolean
+                      description: Indicates if the song has already been played
+                    position:
+                      type: integer
+                      description: The position of the song in the queue
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    put:
+      tags:
+        - Queue
+        - Host
+      summary: Reorder the queue, (handles skips)
+      description: Reorder the queue by providing a new order of song IDs, This is only for the host. This will be heavily related to the front end. front end must keep the queue order and allow only the host to change the visible order and then send that updated version the backend, Only host and the user who added the song to the queue can skip it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newOrder:
+                  type: array
+                  example: [ "song:ID:12345", "song:ID:67890", "song:ID:54321" ]
+                  items:
+                    type: string
+                  description: An array of song IDs representing the new order of the queue.
+      responses:
+        '200':
+          description: Queue Reordered Successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    song:
+                      $ref: '#/components/schemas/SongObject'
+                    alreadyPlayed:
+                      type: boolean
+                      description: Indicates if the song has already been played
+                    position:
+                      type: integer
+                      description: The position of the song in the queue
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+  /metrics/{roomID}:
+    get:
+      tags:
+        - Metrics
+      summary: Get metrics about the entire session so far
+      description: In depth metrics about the entire session so far, most liked songs, most disliked songs, user with most liked songs, user with most disliked songs. generates a report for each song played (who played it, likes and dislikes)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomMetrics'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Metrics
+      summary: Send Like/Dislike for current song
+      description: Send a like or dislike for a song, This will update the like/dislike count for the song
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: The ID of the user sending the like/dislike.
+                songId:
+                  type: string
+                  description: The ID of the song being liked/disliked.
+                action:
+                  type: string
+                  enum: [like, dislike]
+                  description: 'Specify "like" to like the song or "dislike" to dislike the song.'
+      responses:
+        '200':
+          description: Like/Dislike Sent Successfully
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '429':
+          description: Too Many Requests - Rate limit exceeded (dont spam the like/dislike button)
+
+  /metrics/{roomID}/playlist/send:
+    post:
+      tags:
+        - Metrics
+        - Host
+      summary: Send playlist to select users in the room
+      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaylistSendResponse'
+      responses:
+        '200':
+          description: Playlist sent successfully
+        '207':
+          description: Partial Success - Some users may not have received the playlist (TBD needs more detail for each users as to why it didnt succeed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: array
+                    example: [ "user123", "user456" ]
+                    items:
+                      type: string
+                    description: List of users who successfully received the playlist.
+                  failed:
+                    example: [ "user789" ]
+                    type: array
+                    items:
+                      type: string
+                    description: List of users who did not receive the playlist.
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /metrics/{roomID}/history:
+    get:
+      tags:
+        - Metrics
+      summary: Get the history of songs played in the session
+      description: Get a detailed history of all songs played in the session, including who added them, likes, dislikes, and timestamps.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SongObject'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /rooms/{roomid}/state:
+    get:
+      parameters:
+          - in: query
+            name: roomPassword
+            schema:
+              type: string
+              example: mySecretPassword
+            description: The password for the room, if the room is private.
+      tags:
+        - Rooms
+      summary: Get the current state of the room
+      description: Get the current state of the room, including number of users, current song playing, likes/dislikes for the current song, and room settings, this will be a websocket that is constantly updated
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roomId:
+                    type: string
+                    example: 49ca9550ce2e0d
+                    description: The unique identifier for the room.
+                  nowPlaying:
+                    $ref: '#/components/schemas/SongObject'
+                  queue:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SongObject'
+                    description: The current queue of songs in the room.
+                  numberOfUsers:
+                    type: integer
+                    example: 5
+                    description: The number of users currently in the room.
+                  roomSettings:
+                    $ref: '#/components/schemas/RoomCreate'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+
+    JWT_AccessToken:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+          description: Access token
+        expiresIn:
+          type: integer
+          example: 3600
+          description: Token expiration time in seconds
+    JWTRefreshToken:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          example: dGhpcy1pcz1hLXJlZnJlc2gtdG9rZW4tZXhhbXBsZQ==
+          description: Refresh token
+        expiresIn:
+          type: integer
+          example: 86400
+          description: Token expiration time in seconds
+    RoomCreate:
+      type: object
+      properties:
+        roomName:
+          type: string
+          example: flamingos Palace
+          description: The name of the room.
+        lifeTime:
+          type: integer
+          example: 60
+          description: The lifetime of the room in minutes.
+        maxUsers:
+          type: integer
+          example: 100
+          description: The maximum number of users allowed in the room.
+        isPublic:
+          type: boolean
+          description: Indicates if the room is public or private.
+
+
+    RoomSuccessfulResponse:
+      type: object
+      properties:
+        roomProperties:
+          $ref: '#/components/schemas/RoomProperties'
+        timeStamp:
+          type: string
+          example: '2023-10-05T14:48:00.000Z'
+          format: date-time
+          description: The timestamp when the room was created.
+
+
+    RoomProperties:
+      type: object
+      properties:
+        roomId:
+          type: string
+          example: 49ca9550ce2e0d 
+          description: The unique identifier for the room.
+        roomPassword:
+          type: string
+          example: mySecretPassword
+          description: The password for the room, users will need this to join if the Room
+        hostId:
+          type: string
+          example: hostUser123
+          description: The ID of the user who is the host of the room.
+        roomName:
+          type: string
+          example: flamingos Palace
+          description: The name of the room.
+        maxUsers:
+          type: integer
+          example: 100
+          description: The maximum number of users allowed in the room.
+        isPublic:
+          type: boolean
+          description: Indicates if the room is public or private.
+
+
+    SongStats:
+      type: object
+      properties:
+        title:
+          type: string
+          example: Bohemian Rhapsody
+          description: The title of the song.
+        artist:
+          type: string
+          example: Queen
+          description: The artist of the song.
+        album:
+          type: string
+          example: A Night at the Opera
+          description: The album of the song.
+        duration:
+          type: integer
+          example: 354
+          description: The duration of the song in seconds.
+      required:
+        - title
+        - artist
+
+
+    SongMetadata:
+      type: object
+      properties:
+        addedBy:
+          type: string
+          example: user123
+          description: The ID of the user who added the song to the queue.
+        likes:
+          type: integer
+          example: 100
+          description: The number of likes the song has received.
+        dislikes:
+          type: integer
+          example: 5
+          description: The number of dislikes the song has received.
+
+
+    SongObject:
+      type: object
+      description: Represents a song in the queue with its stats and metadata. logical abstraction since we aren't sure how exactly we are going to represent this yet
+      properties:
+        songId:
+          type: string
+          example: song:ID:12345
+          description: The unique identifier for the song. this is for internal use more than anything else
+        stats:
+          $ref: '#/components/schemas/SongStats' 
+        metadata:
+          $ref: '#/components/schemas/SongMetadata'
+
+
+    RoomMetrics:
+      type: object
+      properties:
+        mostLikedSongs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SongMetadata'
+          description: List of the most liked songs in the session.
+        mostDislikedSongs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SongMetadata'
+          description: List of the most disliked songs in the session.
+        userWithMostLikes:
+          type: string
+          example: user123
+          description: The ID of the user with the most liked songs.
+        userWithMostDislikes:
+          type: string
+          example: user456
+          description: The ID of the user with the most disliked songs.
+        roomsize:
+          type: integer
+          example: 5
+          description: The number of users currently in the room.
+        queueLength:
+          type: integer
+          example: 10
+          description: The number of songs currently in the queue.
+      required:
+        - mostLikedSongs
+        - mostDislikedSongs
+        - userWithMostLikes
+        - userWithMostDislikes
+        - roomsize
+        - queueLength
+    PlaylistSendResponse:
+      type: object
+      properties:
+        success:
+          type: array
+          example: [ "user123", "user456" ]
+          items:
+            type: string
+          description: List of users who successfully received the playlist.
+        failed:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                example: user789
+                description: The ID of the user who did not receive the playlist.
+              reason:
+                type: string
+                example: "User is not registered to receive the notification through sms/email"
+                description: The reason why the user did not receive the playlist.
+          description: List of users who did not receive the playlist.
