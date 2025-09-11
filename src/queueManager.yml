@@ -47,7 +47,7 @@ paths:
             description: Bad Request - Invalid input data
           '409':
             description: Conflict - Username or email already exists
-  /logIn:
+  /login:
     post:
       tags:
         - Authentication
@@ -76,7 +76,27 @@ paths:
         '401':
           description: Unauthorized - Invalid username or password
 
-
+  /refresh:
+    get:
+      tags:
+        - Authentication
+      summary: Token Refresh
+      description: Refresh the authentication token using a valid refresh token.
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
+      responses:
+        '200':
+          description: Token refreshed successfully
+        '400':
+          description: Bad Request - Invalid input data
+        '401':
+          description: Unauthorized - Invalid or expired refresh token
 
   /rooms/{roomId}:
     get:
@@ -110,7 +130,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RoomCreate'
+              type: object
+              properties:
+                room:
+                  $ref: '#/components/schemas/RoomCreate'
+                accessToken:
+                  $ref: '#/components/schemas/JWT_AccessToken' 
       responses:
         '201':
           description: Room Created
@@ -162,6 +187,10 @@ paths:
             schema:
               type: object
               properties:
+                accessToken:
+                  type : string
+                  description: The access token of the host user.
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
                 hostId:
                   type: string
                   example: hostUser123
@@ -446,7 +475,28 @@ components:
       bearerFormat: JWT
   schemas:
 
-
+    JWT_AccessToken:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+          description: Access token
+        expiresIn:
+          type: integer
+          example: 3600
+          description: Token expiration time in seconds
+    JWTRefreshToken:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          example: dGhpcy1pcz1hLXJlZnJlc2gtdG9rZW4tZXhhbXBsZQ==
+          description: Refresh token
+        expiresIn:
+          type: integer
+          example: 86400
+          description: Token expiration time in seconds
     RoomCreate:
       type: object
       properties:

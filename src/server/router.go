@@ -31,7 +31,7 @@ func (s *Server) registerMiddleware(r *mux.Router, middleware []mux.MiddlewareFu
 
 func (s *Server) StartServer() error {
 	middleware := []mux.MiddlewareFunc{
-		logMiddleware,
+		//logMiddleware,
 	}
 	router := s.registerRoutes()
 	router = s.registerMiddleware(router, middleware)
@@ -42,9 +42,17 @@ func (s *Server) StartServer() error {
 
 func (s *Server) registerRoutes() *mux.Router {
 	router := mux.NewRouter()
+
+	//Health check
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}).Methods("GET")
+
 	// Authentication
 	router.HandleFunc("/signUp", SignUp).Methods("POST")
-	router.HandleFunc("/logIn", LogIn).Methods("POST")
+	router.HandleFunc("/login", LogIn).Methods("POST")
+	router.HandleFunc("/refresh", Refresh).Methods("GET")
 
 	// Rooms
 	router.HandleFunc("/rooms/{roomId}", JoinRoom).Methods("GET")
