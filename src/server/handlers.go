@@ -27,8 +27,12 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	err = storage.NewDocumentStore("BeatBus-Users").InsertNewUser(reqBody.Username, hashPassword(reqBody.Password))
+	err = storage.NewDocumentStore().InsertNewUser(reqBody.Username, hashPassword(reqBody.Password))
 	if err != nil {
+		if err == storage.ErrUserNameTaken {
+			http.Error(w, "Username already taken", http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -45,7 +49,7 @@ func LogIn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	err = storage.NewDocumentStore("BeatBus-Users").ValidateUser(reqBody.Username, hashPassword(reqBody.Password))
+	err = storage.NewDocumentStore().ValidateUser(reqBody.Username, hashPassword(reqBody.Password))
 	if err != nil {
 		http.Error(w, "[Invalid Creds] "+err.Error(), http.StatusUnauthorized)
 		return
@@ -66,8 +70,35 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // Rooms
-func JoinRoom(w http.ResponseWriter, r *http.Request)  {}
-func Rooms(w http.ResponseWriter, r *http.Request)     {}
+func JoinRoom(w http.ResponseWriter, r *http.Request) {}
+func Rooms(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		var reqBody CreateRoomRequest
+		// Parse the JSON request body
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		if err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		storage := storage.NewDocumentStore()
+		res, err := storage.CreateRoom(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.LifeTime), uint(reqBody.MaxUsers), reqBody.IsPublic)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(res)
+		w.WriteHeader(http.StatusCreated)
+		log.Printf("Received CreateRoom request: %+v\n", reqBody)
+
+	case "PUT":
+		// Update room settings
+	case "DELETE":
+		// Delete a room
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
 func RoomState(w http.ResponseWriter, r *http.Request) {}
 
 // Queue

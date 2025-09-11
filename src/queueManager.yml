@@ -130,19 +130,23 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                room:
-                  $ref: '#/components/schemas/RoomCreate'
-                accessToken:
-                  $ref: '#/components/schemas/JWT_AccessToken' 
+              $ref: '#/components/schemas/RoomCreate'
       responses:
         '201':
           description: Room Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoomSuccessfulResponse'
+                type: object
+                properties:
+                  roomProps:
+                    $ref: '#/components/schemas/RoomProperties'
+                  accessToken:
+                    $ref: '#/components/schemas/JWT_AccessToken'
+                  timeStamp:
+                    type: string
+                    format: date-time
+              
         '400':
           description: Bad Request
         '401':
@@ -500,6 +504,10 @@ components:
     RoomCreate:
       type: object
       properties:
+        hostUsername:
+          type: string
+          example: hostUser123
+          description: The username of the host user creating the room.
         roomName:
           type: string
           example: flamingos Palace
