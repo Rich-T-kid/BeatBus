@@ -17,6 +17,9 @@ var (
 	ErrUserNameTaken                    = fmt.Errorf("username already taken")
 	ErrCannotCreateRoomAlreadyInSession = fmt.Errorf("cannot create room, user already hosting a session")
 	ErrRoomDoesntExist                  = fmt.Errorf("room does not exist")
+	ErrInvalidRoomPassword              = fmt.Errorf("invalid room password")
+	ErrUserAlreadyInRoom                = fmt.Errorf("user already in room")
+	ErrRoomFull                         = fmt.Errorf("room is full")
 )
 
 const (
@@ -176,15 +179,16 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 	}
 	roomsCollection := ds.db.Collection(RoomsCollection)
 	ctx := context.Background()
-	roomID := randomHash()
-	roomPassword := randomHash()
+	roomID := internal.RandomHash()
+	roomPassword := internal.RandomHash()
 	token := internal.NewJWTHandler().CreateToken(hostUsername, roomID, time.Duration(lifetime)*time.Minute)
 	_, err = roomsCollection.InsertOne(ctx, bson.M{
 		"roomID":       roomID,
 		"hostID":       hostUsername,
 		"accessToken":  token,
-		"CurrentQueue": []string{},
-		"playedSongs":  []string{},
+		"CurrentQueue": map[string]interface{}{},
+		"playedSongs":  map[string]interface{}{},
+		"songCount":    0,
 		"usersJoined":  []string{hostUsername},
 		"RoomStats": bson.M{
 			"name":         roomName,
@@ -293,4 +297,138 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (s
 		// Not returning error here because room deletion was successful
 	}
 	return "TBD Still need to develop user liking songs and stuff for the most liked user", nil
+}
+func (ds *DocumentStore) RoomExist(roomID string) bool {
+	ds.mu.RLock()
+	defer ds.mu.RUnlock()
+
+	collection := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	count, err := collection.CountDocuments(ctx, bson.M{"roomID": roomID})
+	if err != nil {
+		return false
+	}
+	return count > 0
+}
+func (ds *DocumentStore) AddUserToRoom(roomID, roomPassword, username string) error {
+	roomsColl := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	var room bson.M
+	err := roomsColl.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err == mongo.ErrNoDocuments {
+		return ErrRoomDoesntExist
+	} else if err != nil {
+		return err
+	}
+	if room["RoomStats"].(bson.M)["roomPassword"] != roomPassword {
+		return ErrInvalidRoomPassword
+	}
+	// Check if user is already in the room
+	usersJoined := room["usersJoined"].(primitive.A)
+	for _, user := range usersJoined {
+		if user == username {
+			return ErrUserAlreadyInRoom
+		}
+	}
+	// Check if room is full
+	fmt.Printf("size of room is %d and maxUsers is %d\n", len(usersJoined), room["RoomStats"].(bson.M)["maxUsers"].(int64))
+	if int64(len(usersJoined)) >= room["RoomStats"].(bson.M)["maxUsers"].(int64) {
+		return ErrRoomFull
+	}
+
+	// Add user to the room
+	_, err = roomsColl.UpdateOne(ctx, bson.M{"roomID": roomID}, bson.M{
+		"$push": bson.M{"usersJoined": username},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (ds *DocumentStore) AddSongToQueue(roomID string, song map[string]interface{}) error {
+	roomCol := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+	var room bson.M
+	err := roomCol.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err != nil {
+		return err
+	}
+	position := room["songCount"].(int32)
+
+	// Build the nested song structure
+	stats, _ := song["stats"].(map[string]interface{})
+	metadata := map[string]interface{}{
+		"addedBy":  stats["addedBy"],
+		"likes":    0,
+		"dislikes": 0,
+	}
+
+	songDoc := map[string]interface{}{
+		"song": map[string]interface{}{
+			"songId": song["songID"],
+			"stats": map[string]interface{}{
+				"title":  stats["songName"],
+				"artist": stats["artistName"],
+				"album":  stats["albumName"],
+				// "duration": // add if available
+			},
+			"metadata": metadata,
+		},
+		"alreadyPlayed": false,
+		"position":      position,
+	}
+
+	fmt.Printf("Adding song to room %s queue: %+v\n", roomID, songDoc)
+	_, err = roomCol.UpdateOne(ctx, bson.M{"roomID": roomID}, bson.M{
+		"$push": bson.M{"CurrentQueue": songDoc},
+	})
+	return err
+}
+func (ds *DocumentStore) GetCurrentQueue(roomID string) (primitive.A, error) {
+	roomCol := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	var room bson.M
+	err := roomCol.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err != nil {
+		return nil, err
+	}
+
+	currentQueue := room["CurrentQueue"].(primitive.A)
+	return currentQueue, nil
+}
+
+func (ds *DocumentStore) UpdateQueue(roomID string, newQueue []string) ([]string, error) {
+
+	return newQueue, nil
+}
+
+// Most Liked songs, Most disliked songs, User with most likes/dislikes, room size , queue legth
+func (ds *DocumentStore) RoomMetrics(roomID string) (bson.M, error) {
+	roomCol := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	var room bson.M
+	err := roomCol.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err != nil {
+		return nil, err
+	}
+
+	return room, nil
+}
+
+func (ds *DocumentStore) QueueHistory(roomID string) (primitive.A, error) {
+	roomCol := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	var room bson.M
+	err := roomCol.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err != nil {
+		return nil, err
+	}
+
+	history := room["playedSongs"].(primitive.A)
+	return history, nil
 }

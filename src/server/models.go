@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,8 +36,45 @@ type JWT_AccessToken struct {
 	Token     string `json:"token"`
 	ExpiresIn int64  `json:"expiresIn"`
 }
+type AddSongRequest struct {
+	SongName   string `json:"songName"`
+	ArtistName string `json:"artistName"`
+	AlbumName  string `json:"albumName"`
+	AddedBy    string `json:"addedBy"`
+}
+type SongMetricRequest struct {
+	UserID string `json:"userID"`
+	SongID string `json:"songID"`
+	Action string `json:"action"` // [like, unlike,dislike, undislike, skip, play]
+}
 
-//MOngo db
+func (smr *SongMetricRequest) isValidAction() bool {
+	validActions := map[string]bool{
+		"like":      true,
+		"unlike":    true,
+		"dislike":   true,
+		"undislike": true,
+	}
+	return validActions[smr.Action]
+}
+func (smr *SongMetricRequest) handleAction() error {
+	if !smr.isValidAction() {
+		return errors.New("invalid action Must be one of [like, unlike, dislike, undislike]")
+	}
+	return nil
+}
+
+type NotifyUserRequest struct {
+	UserIds []UserNotify `json:"userIds"`
+}
+type UserNotify struct {
+	UserID               string `json:"userID"`
+	Method               string `json:"method"` // email or sms
+	Means                string `json:"means"`  // email address or phone number
+	IncludeMostLikedOnly bool   `json:"includeMostLikedOnly"`
+}
+
+//Mongo db
 
 type UserInfo struct {
 	ID               primitive.ObjectID   `bson:"_id,omitempty" json:"id"`                    // MongoDB ObjectID
