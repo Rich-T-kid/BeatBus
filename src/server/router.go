@@ -52,7 +52,6 @@ func (s *Server) registerRoutes() *mux.Router {
 	// Authentication
 	router.HandleFunc("/signUp", SignUp).Methods("POST")
 	router.HandleFunc("/login", LogIn).Methods("POST")
-	router.HandleFunc("/refresh", Refresh).Methods("GET")
 
 	// Rooms
 	router.HandleFunc("/rooms/{roomId}", JoinRoom).Methods("GET")

@@ -76,28 +76,6 @@ paths:
         '401':
           description: Unauthorized - Invalid username or password
 
-  /refresh:
-    get:
-      tags:
-        - Authentication
-      summary: Token Refresh
-      description: Refresh the authentication token using a valid refresh token.
-      parameters:
-        - in: header
-          name: Authorization
-          schema:
-            type: string
-            example: Bearer <refresh_token>
-          required: true
-          description: The refresh token for obtaining a new authentication token.
-      responses:
-        '200':
-          description: Token refreshed successfully
-        '400':
-          description: Bad Request - Invalid input data
-        '401':
-          description: Unauthorized - Invalid or expired refresh token
-
   /rooms/{roomId}:
     get:
       parameters:
@@ -130,19 +108,23 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                room:
-                  $ref: '#/components/schemas/RoomCreate'
-                accessToken:
-                  $ref: '#/components/schemas/JWT_AccessToken' 
+              $ref: '#/components/schemas/RoomCreate'
       responses:
         '201':
           description: Room Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoomSuccessfulResponse'
+                type: object
+                properties:
+                  roomProps:
+                    $ref: '#/components/schemas/RoomProperties'
+                  accessToken:
+                    $ref: '#/components/schemas/JWT_AccessToken'
+                  timeStamp:
+                    type: string
+                    format: date-time
+              
         '400':
           description: Bad Request
         '401':
@@ -157,6 +139,14 @@ paths:
         - Host
       summary: Update Room Settings
       description: Update the settings of a room,max users, isPublic, remove guest from your rooms
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
@@ -180,6 +170,14 @@ paths:
         - Host
       summary: Delete a room
       description: Delete a room, only the host can delete the room, kicks everyone out of the room. Returns the user with most liked songs in the session. (Mr put on)
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
@@ -191,10 +189,10 @@ paths:
                   type : string
                   description: The access token of the host user.
                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-                hostId:
+                hostUsername:
                   type: string
                   example: hostUser123
-                  description: The ID of the user who is the host of the room.
+                  description: The username of the user who is the host of the room.
                 roomId:
                   type: string
                   example: 49ca9550ce2e0d
@@ -281,6 +279,14 @@ paths:
         - Host
       summary: Reorder the queue, (handles skips)
       description: Reorder the queue by providing a new order of song IDs, This is only for the host. This will be heavily related to the front end. front end must keep the queue order and allow only the host to change the visible order and then send that updated version the backend, Only host and the user who added the song to the queue can skip it
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
@@ -373,6 +379,14 @@ paths:
         - Host
       summary: Send playlist to select users in the room
       description: Send the playlist (all songs or only most liked) to select users in the room via email or notification.
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
@@ -500,6 +514,10 @@ components:
     RoomCreate:
       type: object
       properties:
+        hostUsername:
+          type: string
+          example: hostUser123
+          description: The username of the host user creating the room.
         roomName:
           type: string
           example: flamingos Palace
