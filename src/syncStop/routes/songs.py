@@ -1,0 +1,34 @@
+from fastapi import APIRouter, HTTPException
+from models.song import SongRequest, SongResponse
+from services.redis_services import get_song_by_metadata, add_song_to_redis
+from services import s3_services
+
+router = APIRouter()
+
+@router.post("/songs/search", response_model=SongResponse)
+def search_song(song: SongRequest):
+    """Get a song data with the given song name, artist name, and album name"""
+
+    result = get_song_by_metadata(song.song_name, song.artist_name, song.album_name)
+    if result is None:
+        '''
+        scraped_song = scrape_song(song.song_name, song.artist_name, song.album_name)
+        if scraped_song is None:
+            raise HTTPException(status_code=404, detail="Song not found")
+        else:
+            add_song_to_redis(song.song_name, song.artist_name, song.album_name)
+        '''
+        raise HTTPException(status_code=404, detail="Song not found")
+    
+    # result already has the full S3 key, no need to append anything
+    presigned_url = s3_services.create_presigned_url("beatbus-songs", result, 3600)
+    
+    print(f"🔗 Presigned URL: {presigned_url}")
+
+    return SongResponse(song_name=song.song_name, artist_name=song.artist_name, album_name=song.album_name, presigned_url=presigned_url)
+
+@router.post("/songs/add", response_model=SongResponse)
+def add_song(song: SongRequest):
+    """Add a song to the database"""
+    add_song_to_redis(song.song_name, song.artist_name, song.album_name)
+    return SongResponse(song_name=song.song_name, artist_name=song.artist_name, album_name=song.album_name, presigned_url=None)
