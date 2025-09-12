@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	ErrUserNameTaken                      = fmt.Errorf("username already taken")
-	CannotCreateRoomAlreadyInSessionError = fmt.Errorf("cannot create room, user already hosting a session")
+	ErrUserNameTaken                    = fmt.Errorf("username already taken")
+	ErrCannotCreateRoomAlreadyInSession = fmt.Errorf("cannot create room, user already hosting a session")
+	ErrRoomDoesntExist                  = fmt.Errorf("room does not exist")
 )
 
 const (
@@ -164,7 +165,7 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 	)
 	if ds.inSession(hostUsername) {
 		fmt.Printf("user %s is already in a session, cannot create room\n", hostUsername)
-		return nil, CannotCreateRoomAlreadyInSessionError
+		return nil, ErrCannotCreateRoomAlreadyInSession
 	}
 
 	fmt.Printf("user %s is not in a session, proceeding to create room\n", hostUsername)
@@ -216,4 +217,80 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 	}, nil
 }
 
-type CreateRoomResult struct{}
+func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, lifetime, maxUsers uint, public bool) (map[string]interface{}, error) {
+	userColl := ds.db.Collection(UsersCollection)
+	ctx := context.Background()
+
+	var user bson.M
+	err := userColl.FindOne(ctx, bson.M{"username": hostUsername}).Decode(&user)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	roomColl := ds.db.Collection(RoomsCollection)
+	var room bson.M
+	err = roomColl.FindOne(ctx, bson.M{"hostID": hostUsername}).Decode(&room)
+	if err != nil {
+		return nil, fmt.Errorf("room not found")
+	}
+	_, err = roomColl.UpdateOne(ctx, bson.M{"hostID": hostUsername}, bson.M{
+		"$set": bson.M{
+			"RoomStats.name":     roomName,
+			"RoomStats.lifetime": lifetime,
+			"RoomStats.maxUsers": maxUsers,
+			"RoomStats.public":   public,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"roomProps": map[string]interface{}{
+			"roomID":       room["roomID"],
+			"roomPassword": room["RoomStats"].(bson.M)["roomPassword"],
+			"hostID":       hostUsername,
+			"roomName":     roomName,
+			"maxUsers":     maxUsers,
+			"isPublic":     public,
+		},
+		"timeStamp": time.Now().Unix(),
+	}, nil
+}
+func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (string, error) {
+	RoomsCollection := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	// Verify room exists and hostUsername matches
+	var room bson.M
+	fmt.Printf("Attempting to delete room with roomID=%s by hostUsername=%s\n", roomID, hostUsername)
+	err := RoomsCollection.FindOne(ctx, bson.M{"roomID": roomID, "hostID": hostUsername}).Decode(&room)
+	if err == mongo.ErrNoDocuments {
+		return "", ErrRoomDoesntExist
+	} else if err != nil {
+		return "", err
+	}
+
+	// Verify accessToken matches
+	if room["accessToken"] != accessToken {
+		return "", fmt.Errorf("invalid access token")
+	}
+	err = RoomsCollection.FindOneAndDelete(ctx, bson.M{"roomID": roomID}).Err()
+	if err != nil {
+		return "", err
+	}
+
+	// Set host user's inSession to false
+	err = ds.setInSession(hostUsername, false)
+	if err != nil {
+		fmt.Printf("failed to set user %s inSession to false: %v\n", hostUsername, err)
+		// Not returning error here because room deletion was successful
+	}
+	userInfoColl := ds.db.Collection(UserInfoCollection)
+	err = userInfoColl.FindOneAndUpdate(ctx, bson.M{"user_id": room["hostID"]}, bson.M{
+		"$push": bson.M{"previous_sessions": roomID},
+	}).Err()
+	if err != nil {
+		fmt.Printf("failed to update previousSessions for user %s: %v\n", hostUsername, err)
+		// Not returning error here because room deletion was successful
+	}
+	return "TBD Still need to develop user liking songs and stuff for the most liked user", nil
+}
