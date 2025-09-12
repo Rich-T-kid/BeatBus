@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from models.song import SongRequest, SongResponse
 from services.redis_services import get_song_by_metadata, add_song_to_redis
 from services import s3_services
+from services.scraper_services import scrape_song
 
 router = APIRouter()
 
@@ -11,14 +12,14 @@ def search_song(song: SongRequest):
 
     result = get_song_by_metadata(song.song_name, song.artist_name, song.album_name)
     if result is None:
-        '''
-        scraped_song = scrape_song(song.song_name, song.artist_name, song.album_name)
-        if scraped_song is None:
+        # Try to scrape the song
+        s3_key = scrape_song(song.song_name, song.artist_name, song.album_name)
+        if s3_key is None:
             raise HTTPException(status_code=404, detail="Song not found")
         else:
+            # Add to Redis cache
             add_song_to_redis(song.song_name, song.artist_name, song.album_name)
-        '''
-        raise HTTPException(status_code=404, detail="Song not found")
+            result = s3_key
     
     # result already has the full S3 key, no need to append anything
     presigned_url = s3_services.create_presigned_url("beatbus-songs", result, 3600)
