@@ -4,6 +4,8 @@ from botocore.exceptions import ClientError
 from botocore.config import Config
 from config import config
 
+# changes
+
 def create_presigned_url(bucket_name, object_name, expiration=3600):
     s3_client = boto3.client('s3',
         aws_access_key_id=config.AWS_ACCESS_KEY_ID,
