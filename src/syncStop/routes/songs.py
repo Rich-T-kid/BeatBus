@@ -21,7 +21,7 @@ def search_song(song: SongRequest):
             add_song_to_redis(song.song_name, song.artist_name, song.album_name)
             result = s3_key
     
-    # result already has the full S3 key, no need to append anything
+
     presigned_url = s3_services.create_presigned_url("beatbus-songs", result, 3600)
     
     print(f"🔗 Presigned URL: {presigned_url}")
