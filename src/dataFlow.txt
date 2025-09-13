@@ -17,3 +17,11 @@
     Mr.Put on is displayed to everyone in the chat
     Host can push out the (all/liked) songs out to the users that joined his room at (the end/any point) in the session
     users at the end will have the option to add a number to send the playlist stats to
+
+
+
+
+accessTokens binded to rooms expire after their orginal start date. So this means that we need to restrict the lifetime of the room to be less than it currently is
+
+
+make sure to increment song count and to set the position of each song object to the song count + 1

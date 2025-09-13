@@ -84,7 +84,15 @@ paths:
           schema:
             type: string
             example: mySecretPassword
-          description: The password for the room, 
+          description: The password for the room.
+          required: true
+        - in: query
+          required: true
+          name: username
+          schema:
+            type: string
+            example: user123
+          description: The username of the user joining the room.
       tags:
         - Rooms
       summary: Join a room by ID
@@ -92,6 +100,8 @@ paths:
       responses:
         '200':
           description: Successful Response
+        '204':
+          description: No Content - user was already in the room
         '400':
           description: Bad Request
         '401':
@@ -235,6 +245,10 @@ paths:
                   type: string
                   example: Queen
                   description: The name of the artist of the song to add to the queue.
+                albumName:
+                  type: string
+                  example: A Night at the Opera
+                  description: The name of the album of the song to add to the queue.
                 addedBy:
                   type: string
                   example: user123
@@ -279,6 +293,7 @@ paths:
         - Host
       summary: Reorder the queue, (handles skips)
       description: Reorder the queue by providing a new order of song IDs, This is only for the host. This will be heavily related to the front end. front end must keep the queue order and allow only the host to change the visible order and then send that updated version the backend, Only host and the user who added the song to the queue can skip it
+      #TODO: its very important that the front end is 100% correct for this endpoint or else there will be server bugs
       parameters:
         - in: header
           name: Authorization
@@ -360,7 +375,7 @@ paths:
                   description: The ID of the song being liked/disliked.
                 action:
                   type: string
-                  enum: [like, dislike]
+                  enum: [like, remove-like,dislike,remove-dislike]
                   description: 'Specify "like" to like the song or "dislike" to dislike the song.'
       responses:
         '200':
@@ -378,7 +393,7 @@ paths:
         - Metrics
         - Host
       summary: Send playlist to select users in the room
-      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification.
+      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification. For now only sms works
       parameters:
         - in: header
           name: Authorization
@@ -392,7 +407,29 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PlaylistSendResponse'
+              type: object
+              properties:
+                userIds:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                        example: user123
+                        description: The ID of the user to whom the playlist should be sent.
+                      method:
+                        type: string
+                        example: email | notification
+                        description: The method of sending the playlist (email or notification).
+                      means:
+                        type: string
+                        description: The email address or phone number of the user.
+                        example: user@example.com | 9087654321
+                      includeMostLikedOnly:
+                        type: boolean
+                        description: If true, only the most liked songs will be included in the playlist; otherwise, all songs will be included.
+                  description: An array of user IDs to whom the playlist should be sent.
       responses:
         '200':
           description: Playlist sent successfully

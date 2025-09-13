@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var cfg = GetConfig()
@@ -54,4 +55,8 @@ func verifyToken(tokenString string) error {
 	}
 
 	return nil
+}
+
+func RandomHash() string {
+	return uuid.New().String()
 }
