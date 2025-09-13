@@ -1,10 +1,18 @@
 package server
 
 import (
-	"errors"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+const (
+	textBeltAPIURL = "https://textbelt.com/text"
 )
 
 type AuthRequest struct {
@@ -48,25 +56,148 @@ type SongMetricRequest struct {
 	Action string `json:"action"` // [like, unlike,dislike, undislike, skip, play]
 }
 
-func (smr *SongMetricRequest) isValidAction() bool {
-	validActions := map[string]bool{
-		"like":      true,
-		"unlike":    true,
-		"dislike":   true,
-		"undislike": true,
-	}
-	return validActions[smr.Action]
+type NewOrderRequest struct {
+	NewOrder []string `json:"newOrder"`
 }
-func (smr *SongMetricRequest) handleAction() error {
-	if !smr.isValidAction() {
-		return errors.New("invalid action Must be one of [like, unlike, dislike, undislike]")
-	}
-	return nil
+
+type txtBeltResponse struct {
+	Success        bool   `json:"success"`
+	TextId         string `json:"textId"`
+	QuotaRemaining int    `json:"quotaRemaining"`
 }
 
 type NotifyUserRequest struct {
 	UserIds []UserNotify `json:"userIds"`
 }
+
+func (nwr *NotifyUserRequest) songDataToString(songData []interface{}) string {
+	// convert songData to a string representation
+	fmt.Println("inside songDataToString function", 3)
+	var sb strings.Builder
+	for i, songItem := range songData {
+		if i > 0 {
+			sb.WriteString(", ") // separator between songs
+		}
+
+		// Extract song info from the nested structure
+		songMap := songItem.(primitive.M)
+		song := songMap["song"].(primitive.M)
+		stats := song["stats"].(primitive.M)
+
+		title := stats["title"].(string)
+		artist := stats["artist"].(string)
+		album := stats["album"].(string)
+
+		// Format as "title-artist-album"
+		sb.WriteString(fmt.Sprintf("\n[song %d] %s-%s-%s", i+1, title, artist, album))
+	}
+	return sb.String()
+}
+
+// return whether the email was sent successfully or not
+func (nwr *NotifyUserRequest) sendEmail(userID, email string, songData []interface{}) (bool, string) {
+	fmt.Println("inside sendEmail function", 2)
+	msg := nwr.songDataToString(songData)
+	fmt.Println("out of songDataToString function, msg:", msg)
+	fmt.Println("Sending email to:", email)
+	fmt.Println("Email content:", msg)
+	// Implement actual email sending logic here
+	// For now, we assume it's always successful
+	return true, ""
+}
+
+// return whether the sms was sent successfully or not
+func (nwr *NotifyUserRequest) sendSMS(userID, phoneNumber string, songData []interface{}) (bool, string) {
+	msg := nwr.songDataToString(songData)
+	fmt.Println("out of songDataToString function, msg:", msg)
+	fmt.Println("Sending SMS to:", phoneNumber)
+	// Implement actual SMS sending logic here
+	// For now, we assume it's always successful
+	values := url.Values{
+		"phone":   {phoneNumber},
+		"message": {msg},
+		"key":     {cfg.TxtBeltAPIKey},
+	}
+
+	resp, err := http.PostForm(textBeltAPIURL, values)
+	if err != nil {
+		fmt.Println("Error sending SMS:", err)
+		return false, ""
+	}
+	defer resp.Body.Close()
+	var result txtBeltResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		fmt.Println("Error decoding SMS response:", err)
+		return false, ""
+	}
+	fmt.Printf("SMS response: %+v\n", result)
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("Failed to send SMS, status code:", resp.StatusCode)
+		return false, ""
+	}
+	if !result.Success {
+		fmt.Println("SMS sending failed, response:", result)
+		return false, ""
+	}
+	fmt.Println("SMS sent successfully, response:", result)
+	return true, ""
+}
+
+type FailNotification struct {
+	UserID string `json:"userID"`
+	Reason string `json:"reason"`
+}
+
+func (nwr *NotifyUserRequest) Sendmessages(allSongs, mostLiked []interface{}) map[string]interface{} {
+	var successful []string
+	var failed []FailNotification
+	fmt.Println("inside Sendmessages function", 1)
+	// Implementation for sending messages
+	for _, user := range nwr.UserIds {
+		// validate that the users mean and method is correct
+		switch user.Method {
+		case "email":
+			if user.IncludeMostLikedOnly {
+				if suc, failureReason := nwr.sendEmail(user.UserID, user.Means, mostLiked); suc {
+					successful = append(successful, user.UserID)
+				} else {
+					failed = append(failed, FailNotification{UserID: user.UserID, Reason: failureReason})
+				}
+			} else {
+				if suc, failureReason := nwr.sendEmail(user.UserID, user.Means, allSongs); suc {
+					successful = append(successful, user.UserID)
+				} else {
+					failed = append(failed, FailNotification{UserID: user.UserID, Reason: failureReason})
+				}
+			}
+			// validate email format
+		case "sms":
+			if user.IncludeMostLikedOnly {
+				if suc, failureReason := nwr.sendSMS(user.UserID, user.Means, mostLiked); suc {
+					successful = append(successful, user.UserID)
+				} else {
+					failed = append(failed, FailNotification{UserID: user.UserID, Reason: failureReason})
+				}
+			} else {
+				if suc, failureReason := nwr.sendSMS(user.UserID, user.Means, allSongs); suc {
+					successful = append(successful, user.UserID)
+				} else {
+					failed = append(failed, FailNotification{UserID: user.UserID, Reason: failureReason})
+				}
+			}
+			// validate phone number format
+		default:
+			failed = append(failed, FailNotification{UserID: user.UserID, Reason: "invalid method"})
+			continue
+		}
+	}
+	return map[string]interface{}{
+		"success": successful,
+		"failed":  failed,
+	}
+}
+
 type UserNotify struct {
 	UserID               string `json:"userID"`
 	Method               string `json:"method"` // email or sms

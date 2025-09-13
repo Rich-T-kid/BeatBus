@@ -170,6 +170,8 @@ func Rooms(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"MrPutOn": Winner})
 	}
 }
+
+// TODO:  This needs to be implemented using websock so that the client can get real time updates
 func RoomState(w http.ResponseWriter, r *http.Request) {}
 
 // Queue
@@ -185,6 +187,7 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Printf("Handling playlist for roomID: %s\n", roomID)
 	switch r.Method {
+	//TODO: add more input validation here. if the fields are empty return an error all fields must be present
 	case "POST":
 		var reqBody AddSongRequest
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -207,7 +210,6 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 		}
 		NewDownloadQueue().RetrieveSong(reqBody)
 		w.WriteHeader(http.StatusCreated)
-		// Add song to queue
 	case "GET":
 		// Get current queue
 		resp, err := storage.NewDocumentStore().GetCurrentQueue(roomID)
@@ -217,20 +219,18 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(resp)
 	case "PUT":
-		//TODO: do this endpoint skipping it for now because its annoying to implement
-		// Update queue (e.g., reorder songs)
 		err := jwtValidation(*r)
 		if err != nil {
 			http.Error(w, "[Invalid Token] "+err.Error(), http.StatusUnauthorized)
 			return
 		}
-		var reqBody []string
+		var reqBody NewOrderRequest
 		err = json.NewDecoder(r.Body).Decode(&reqBody)
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		updatedQueue, err := storage.NewDocumentStore().UpdateQueue(roomID, reqBody)
+		updatedQueue, err := storage.NewDocumentStore().UpdateQueue(roomID, reqBody.NewOrder)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -241,7 +241,7 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Metrics
+// Metrics -> TODO: turn into websock endpoint later
 func Metrics(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]
 	if roomID == "" {
@@ -261,11 +261,28 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(resp)
 	case "POST":
-		// Create new metric entry
+		// TODO: This needs to be idempotent
+		var reqBody SongMetricRequest
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		if err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		err = storage.NewDocumentStore().SongOperation(roomID, reqBody.SongID, reqBody.Action)
+		if err != nil {
+			switch err {
+			case storage.ErrInvalidSongOperation(reqBody.Action):
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			default:
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
-// TODO: This needs to be idempotent
 func MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]
 	if roomID == "" {
@@ -287,7 +304,19 @@ func MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("Received notify request for roomID: %s with body: %+v\n", roomID, reqBody)
+	log.Printf("Received notify request for roomID: %s with body: %+v\n", roomID, reqBody)
+	mostLiked, currentQueue, err := storage.NewDocumentStore().GetRoomsPlaylist(roomID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	resp := reqBody.Sendmessages(mostLiked, currentQueue)
+	if len(resp["failed"].([]FailNotification)) > 0 {
+		w.WriteHeader(http.StatusPartialContent)
+		json.NewEncoder(w).Encode(resp)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 func MetricsHistory(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]

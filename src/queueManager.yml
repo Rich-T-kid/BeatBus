@@ -293,6 +293,7 @@ paths:
         - Host
       summary: Reorder the queue, (handles skips)
       description: Reorder the queue by providing a new order of song IDs, This is only for the host. This will be heavily related to the front end. front end must keep the queue order and allow only the host to change the visible order and then send that updated version the backend, Only host and the user who added the song to the queue can skip it
+      #TODO: its very important that the front end is 100% correct for this endpoint or else there will be server bugs
       parameters:
         - in: header
           name: Authorization
@@ -392,7 +393,7 @@ paths:
         - Metrics
         - Host
       summary: Send playlist to select users in the room
-      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification.
+      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification. For now only sms works
       parameters:
         - in: header
           name: Authorization
