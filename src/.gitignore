@@ -17,7 +17,7 @@ dump.rdb
 .vscode/
 .idea/
 
-# OS files
+# OS file
 .DS_Store
 
 
