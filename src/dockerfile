@@ -1,0 +1,22 @@
+FROM golang:latest
+
+WORKDIR /APP
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN go build -o main .
+EXPOSE 8080
+CMD ["./main"]
+
+
+
+# docker buildx create --use --name beatbusbuilder || docker buildx use beatbusbuilder
+# docker buildx build --platform linux/amd64,linux/arm64 -t rich329/beatbus:v1.0.1 --push .
+
+
+# on the ec2 instances run
+# docker pull rich329/beatbus:v1.0.1
+# docker run -d -p 8080:8080 --name beatbus rich329/beatbus:v1.0.1
