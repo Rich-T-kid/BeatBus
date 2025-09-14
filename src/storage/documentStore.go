@@ -4,6 +4,7 @@ import (
 	"BeatBus/internal"
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -37,6 +38,7 @@ const (
 type DocumentStore struct {
 	client *mongo.Client
 	db     *mongo.Database
+	logger *log.Logger
 	mu     sync.RWMutex
 }
 
@@ -48,12 +50,13 @@ func newMongoClient(mongoURI string) *mongo.Client {
 	}
 	return client
 }
-func NewDocumentStore() *DocumentStore {
+func NewDocumentStore(l *log.Logger) *DocumentStore {
 	client := newMongoClient(cfg.MongoURI)
 	db := client.Database(MongoDBName)
 	return &DocumentStore{
 		client: client,
 		db:     db,
+		logger: l,
 	}
 }
 
@@ -79,7 +82,7 @@ func (ds *DocumentStore) InsertNewUser(username, hashedPassword string) error {
 		"password": hashedPassword,
 	})
 	if err != nil {
-		fmt.Println("Error inserting new user:", err)
+		ds.logger.Println("Error inserting new user:", err)
 		return err
 	}
 	id := res.InsertedID.(primitive.ObjectID).Hex()
@@ -134,7 +137,7 @@ func (ds *DocumentStore) inSession(username string) bool {
 	}
 
 	userID := user["_id"].(primitive.ObjectID).Hex()
-	fmt.Println("userID:", userID)
+	ds.logger.Println("userID:", userID)
 	var userInfo bson.M
 	infoCollection := ds.db.Collection("usersInfo")
 	err = infoCollection.FindOne(ctx, bson.M{"user_id": userID}).Decode(&userInfo)
@@ -161,25 +164,25 @@ func (ds *DocumentStore) setInSession(username string, inSession bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("No errors finding user -> ", user)
+	ds.logger.Println("No errors finding user -> ", user)
 	coll = ds.db.Collection(UserInfoCollection)
 	err = coll.FindOneAndUpdate(ctx, bson.M{"user_id": user["_id"].(primitive.ObjectID).Hex()}, bson.M{"$set": bson.M{"inSession": inSession}}).Err()
 	return err
 }
 func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, maxUsers uint, public bool) (map[string]interface{}, error) {
-	fmt.Printf(
+	ds.logger.Printf(
 		"CreateRoom called with hostUsername=%s, roomName=%s, lifetime=%d, maxUsers=%d, public=%t\n",
 		hostUsername, roomName, lifetime, maxUsers, public,
 	)
 	if ds.inSession(hostUsername) {
-		fmt.Printf("user %s is already in a session, cannot create room\n", hostUsername)
+		ds.logger.Printf("user %s is already in a session, cannot create room\n", hostUsername)
 		return nil, ErrCannotCreateRoomAlreadyInSession
 	}
 
-	fmt.Printf("user %s is not in a session, proceeding to create room\n", hostUsername)
+	ds.logger.Printf("user %s is not in a session, proceeding to create room\n", hostUsername)
 	err := ds.setInSession(hostUsername, true)
 	if err != nil {
-		fmt.Printf("failed to set user %s inSession to true: %v\n", hostUsername, err)
+		ds.logger.Printf("failed to set user %s inSession to true: %v\n", hostUsername, err)
 		return nil, err
 	}
 	roomsCollection := ds.db.Collection(RoomsCollection)
@@ -205,7 +208,7 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 		},
 	})
 	if err != nil {
-		fmt.Printf("Error creating room: %v\n", err)
+		ds.logger.Printf("Error creating room: %v\n", err)
 		return nil, err
 	}
 
@@ -270,7 +273,7 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (s
 
 	// Verify room exists and hostUsername matches
 	var room bson.M
-	fmt.Printf("Attempting to delete room with roomID=%s by hostUsername=%s\n", roomID, hostUsername)
+	ds.logger.Printf("Attempting to delete room with roomID=%s by hostUsername=%s\n", roomID, hostUsername)
 	err := RoomsCollection.FindOne(ctx, bson.M{"roomID": roomID, "hostID": hostUsername}).Decode(&room)
 	if err == mongo.ErrNoDocuments {
 		return "", ErrRoomDoesntExist
@@ -290,7 +293,7 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (s
 	// Set host user's inSession to false
 	err = ds.setInSession(hostUsername, false)
 	if err != nil {
-		fmt.Printf("failed to set user %s inSession to false: %v\n", hostUsername, err)
+		ds.logger.Printf("failed to set user %s inSession to false: %v\n", hostUsername, err)
 		// Not returning error here because room deletion was successful
 	}
 	userInfoColl := ds.db.Collection(UserInfoCollection)
@@ -298,7 +301,7 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (s
 		"$push": bson.M{"previous_sessions": roomID},
 	}).Err()
 	if err != nil {
-		fmt.Printf("failed to update previousSessions for user %s: %v\n", hostUsername, err)
+		ds.logger.Printf("failed to update previousSessions for user %s: %v\n", hostUsername, err)
 		// Not returning error here because room deletion was successful
 	}
 	return "TBD Still need to develop user liking songs and stuff for the most liked user", nil
@@ -338,7 +341,7 @@ func (ds *DocumentStore) AddUserToRoom(roomID, roomPassword, username string) er
 		}
 	}
 	// Check if room is full
-	fmt.Printf("size of room is %d and maxUsers is %d\n", len(usersJoined), room["RoomStats"].(bson.M)["maxUsers"].(int64))
+	ds.logger.Printf("size of room is %d and maxUsers is %d\n", len(usersJoined), room["RoomStats"].(bson.M)["maxUsers"].(int64))
 	if int64(len(usersJoined)) >= room["RoomStats"].(bson.M)["maxUsers"].(int64) {
 		return ErrRoomFull
 	}
@@ -385,7 +388,7 @@ func (ds *DocumentStore) AddSongToQueue(roomID string, song map[string]interface
 		"position":      position,
 	}
 
-	fmt.Printf("Adding song to room %s queue: %+v\n", roomID, songDoc)
+	ds.logger.Printf("Adding song to room %s queue: %+v\n", roomID, songDoc)
 	_, err = roomCol.UpdateOne(ctx, bson.M{"roomID": roomID}, bson.M{
 		"$push": bson.M{"CurrentQueue": songDoc},
 		"$inc":  bson.M{"songCount": 1},
@@ -460,7 +463,7 @@ func (ds *DocumentStore) SongOperation(roomID, songID, userID, operation string)
 	if !validOperations[operation] {
 		return ErrInvalidSongOperation(operation)
 	}
-	fmt.Printf("%s is Performing operation '%s' on songs in room '%s'\n", userID, operation, roomID)
+	ds.logger.Printf("%s is Performing operation '%s' on songs in room '%s'\n", userID, operation, roomID)
 	switch operation {
 	case "like":
 		_, err = roomCol.UpdateOne(ctx,

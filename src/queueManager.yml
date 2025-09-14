@@ -18,6 +18,16 @@ tags:
     description: Authentication related endpoints, Login, Register, Refresh token
 
 paths:
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Check the health status of the API.
+      responses:
+        '200':
+          description: API is healthy
   /signUp:
     post:
       tags:

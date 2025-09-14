@@ -3,6 +3,7 @@ package storage
 import (
 	"BeatBus/internal"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/go-redis/redis/v8"
@@ -10,6 +11,7 @@ import (
 
 type messageQueue struct {
 	client *redis.Client
+	logger *log.Logger
 	mu     sync.RWMutex
 }
 
@@ -30,9 +32,10 @@ func newRedisClient(redisURI string) *redis.Client {
 	}
 	return client
 }
-func NewMessageQueue() *messageQueue {
+func NewMessageQueue(l *log.Logger) *messageQueue {
 	client := newRedisClient(cfg.RedisURI)
 	return &messageQueue{
 		client: client,
+		logger: l,
 	}
 }

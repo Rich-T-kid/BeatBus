@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -22,7 +21,7 @@ func hashPassword(password string) string {
 }
 
 // Authentication
-func SignUp(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 	var reqBody AuthRequest
 	// Parse the JSON request body
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -30,7 +29,7 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	err = storage.NewDocumentStore().InsertNewUser(reqBody.Username, hashPassword(reqBody.Password))
+	err = storage.NewDocumentStore(s.documentLogger).InsertNewUser(reqBody.Username, hashPassword(reqBody.Password))
 	if err != nil {
 		if err == storage.ErrUserNameTaken {
 			http.Error(w, "Username already taken", http.StatusConflict)
@@ -43,7 +42,7 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("User created successfully"))
 
 }
-func LogIn(w http.ResponseWriter, r *http.Request) {
+func (s *Server) LogIn(w http.ResponseWriter, r *http.Request) {
 	var reqBody AuthRequest
 	// Parse the JSON request body
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -51,7 +50,7 @@ func LogIn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	err = storage.NewDocumentStore().ValidateUser(reqBody.Username, hashPassword(reqBody.Password))
+	err = storage.NewDocumentStore(s.documentLogger).ValidateUser(reqBody.Username, hashPassword(reqBody.Password))
 	if err != nil {
 		http.Error(w, "[Invalid Creds] "+err.Error(), http.StatusUnauthorized)
 		return
@@ -61,7 +60,7 @@ func LogIn(w http.ResponseWriter, r *http.Request) {
 }
 
 // Rooms
-func JoinRoom(w http.ResponseWriter, r *http.Request) {
+func (s *Server) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomId"]
 	if roomID == "" {
 		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
@@ -77,7 +76,7 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing username parameter", http.StatusBadRequest)
 		return
 	}
-	err := storage.NewDocumentStore().AddUserToRoom(roomID, roomPassword, username)
+	err := storage.NewDocumentStore(s.documentLogger).AddUserToRoom(roomID, roomPassword, username)
 	if err != nil {
 		switch err {
 		case storage.ErrRoomDoesntExist:
@@ -106,7 +105,7 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
 }
-func Rooms(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
 		var reqBody CreateRoomRequest
@@ -116,14 +115,14 @@ func Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		storage := storage.NewDocumentStore()
+		storage := storage.NewDocumentStore(s.documentLogger)
 		res, err := storage.CreateRoom(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.LifeTime), uint(reqBody.MaxUsers), reqBody.IsPublic)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		json.NewEncoder(w).Encode(res)
-		log.Printf("Received CreateRoom request: %+v\n", reqBody)
+		s.logger.Printf("Received CreateRoom request: %+v\n", reqBody)
 
 	case "PUT":
 		// Update room settings
@@ -138,7 +137,7 @@ func Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		response, err := storage.NewDocumentStore().UpdateRoomSettings(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.LifeTime), uint(reqBody.MaxUsers), reqBody.IsPublic)
+		response, err := storage.NewDocumentStore(s.documentLogger).UpdateRoomSettings(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.LifeTime), uint(reqBody.MaxUsers), reqBody.IsPublic)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -157,8 +156,8 @@ func Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		fmt.Printf("received DELETE request for room: %+v\n", reqBody)
-		Winner, err := storage.NewDocumentStore().DeleteRoom(reqBody["accessToken"], reqBody["hostUsername"], reqBody["roomID"])
+		s.logger.Printf("received DELETE request for room: %+v\n", reqBody)
+		Winner, err := storage.NewDocumentStore(s.documentLogger).DeleteRoom(reqBody["accessToken"], reqBody["hostUsername"], reqBody["roomID"])
 		if err != nil {
 			if err == storage.ErrRoomDoesntExist {
 				http.Error(w, fmt.Sprintf("[The Room you are attempting to delete doesn't exist] -> %s \n check that you have permission to delete this room and that the provided information is correct. \n You may have already deleted this", reqBody["roomID"]), http.StatusNotFound)
@@ -172,20 +171,20 @@ func Rooms(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO:  This needs to be implemented using websock so that the client can get real time updates
-func RoomState(w http.ResponseWriter, r *http.Request) {}
+func (s *Server) RoomState(w http.ResponseWriter, r *http.Request) {}
 
 // Queue
-func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
+func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]
 	if roomID == "" {
 		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
 		return
 	}
-	if !storage.NewDocumentStore().RoomExist(roomID) {
+	if !storage.NewDocumentStore(s.documentLogger).RoomExist(roomID) {
 		http.Error(w, fmt.Sprintf("Room with ID [ %s ] does not exist", roomID), http.StatusNotFound)
 		return
 	}
-	fmt.Printf("Handling playlist for roomID: %s\n", roomID)
+	s.logger.Printf("Handling playlist for roomID: %s\n", roomID)
 	switch r.Method {
 	//TODO: add more input validation here. if the fields are empty return an error all fields must be present
 	case "POST":
@@ -195,7 +194,7 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		err = storage.NewDocumentStore().AddSongToQueue(roomID, map[string]interface{}{
+		err = storage.NewDocumentStore(s.documentLogger).AddSongToQueue(roomID, map[string]interface{}{
 			"songID": internal.RandomHash(),
 			"stats": map[string]interface{}{
 				"songName":   reqBody.SongName,
@@ -212,7 +211,7 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	case "GET":
 		// Get current queue
-		resp, err := storage.NewDocumentStore().GetCurrentQueue(roomID)
+		resp, err := storage.NewDocumentStore(s.documentLogger).GetCurrentQueue(roomID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -230,7 +229,7 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		updatedQueue, err := storage.NewDocumentStore().UpdateQueue(roomID, reqBody.NewOrder)
+		updatedQueue, err := storage.NewDocumentStore(s.documentLogger).UpdateQueue(roomID, reqBody.NewOrder)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -241,20 +240,20 @@ func QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Metrics -> TODO: turn into websock endpoint later
-func Metrics(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]
 	if roomID == "" {
 		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
 		return
 	}
-	if !storage.NewDocumentStore().RoomExist(roomID) {
+	if !storage.NewDocumentStore(s.documentLogger).RoomExist(roomID) {
 		http.Error(w, fmt.Sprintf("Room with ID [ %s ] does not exist", roomID), http.StatusNotFound)
 		return
 	}
 	switch r.Method {
 	case "GET":
-		resp, err := storage.NewDocumentStore().RoomMetrics(roomID)
+		// TODO: Mabey could make websocket connection but not the prio right not at all
+		resp, err := storage.NewDocumentStore(s.documentLogger).RoomMetrics(roomID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -268,7 +267,7 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		err = storage.NewDocumentStore().SongOperation(roomID, reqBody.SongID, reqBody.Action, reqBody.UserID)
+		err = storage.NewDocumentStore(s.documentLogger).SongOperation(roomID, reqBody.SongID, reqBody.Action, reqBody.UserID)
 		if err != nil {
 			switch err {
 			case storage.ErrInvalidSongOperation(reqBody.Action):
@@ -283,13 +282,13 @@ func Metrics(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
+func (s *Server) MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]
 	if roomID == "" {
 		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
 		return
 	}
-	if !storage.NewDocumentStore().RoomExist(roomID) {
+	if !storage.NewDocumentStore(s.documentLogger).RoomExist(roomID) {
 		http.Error(w, fmt.Sprintf("Room with ID [ %s ] does not exist", roomID), http.StatusNotFound)
 		return
 	}
@@ -304,8 +303,8 @@ func MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	log.Printf("Received notify request for roomID: %s with body: %+v\n", roomID, reqBody)
-	mostLiked, currentQueue, err := storage.NewDocumentStore().GetRoomsPlaylist(roomID)
+	s.logger.Printf("Received notify request for roomID: %s with body: %+v\n", roomID, reqBody)
+	mostLiked, currentQueue, err := storage.NewDocumentStore(s.documentLogger).GetRoomsPlaylist(roomID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -318,17 +317,17 @@ func MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 }
-func MetricsHistory(w http.ResponseWriter, r *http.Request) {
+func (s *Server) MetricsHistory(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["roomID"]
 	if roomID == "" {
 		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
 		return
 	}
-	if !storage.NewDocumentStore().RoomExist(roomID) {
+	if !storage.NewDocumentStore(s.documentLogger).RoomExist(roomID) {
 		http.Error(w, fmt.Sprintf("Room with ID [ %s ] does not exist", roomID), http.StatusNotFound)
 		return
 	}
-	resp, err := storage.NewDocumentStore().QueueHistory(roomID)
+	resp, err := storage.NewDocumentStore(s.documentLogger).QueueHistory(roomID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -347,4 +346,17 @@ func jwtValidation(r http.Request) error {
 	token = strings.TrimPrefix(token, "Bearer ")
 	err := internal.NewJWTHandler().VerifyToken(token)
 	return err
+}
+
+func Cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
