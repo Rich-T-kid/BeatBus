@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from routes import songs
 import uvicorn
+from config import config
 
 app = FastAPI(
     title="SyncStop",
@@ -15,4 +16,4 @@ def read_root():
     return {"message": "Hello World"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=config.HOST, port=config.PORT)

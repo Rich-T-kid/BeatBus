@@ -7,7 +7,4 @@ class SongRequest(BaseModel):
     album_name: str
 
 class SongResponse(BaseModel):
-    song_name: str
-    artist_name: str
-    album_name: str
     presigned_url: Optional[str] = None

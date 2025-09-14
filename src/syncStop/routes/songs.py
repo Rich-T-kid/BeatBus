@@ -26,10 +26,5 @@ def search_song(song: SongRequest):
     
     print(f"🔗 Presigned URL: {presigned_url}")
 
-    return SongResponse(song_name=song.song_name, artist_name=song.artist_name, album_name=song.album_name, presigned_url=presigned_url)
+    return SongResponse(presigned_url=presigned_url)
 
-@router.post("/songs/add", response_model=SongResponse)
-def add_song(song: SongRequest):
-    """Add a song to the database"""
-    add_song_to_redis(song.song_name, song.artist_name, song.album_name)
-    return SongResponse(song_name=song.song_name, artist_name=song.artist_name, album_name=song.album_name, presigned_url=None)
