@@ -42,12 +42,20 @@ type DocumentStore struct {
 	mu     sync.RWMutex
 }
 
+var (
+	mongoClient *mongo.Client
+)
+
 func newMongoClient(mongoURI string) *mongo.Client {
+	if mongoClient != nil {
+		return mongoClient
+	}
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		fmt.Printf("Failed to connect to MongoDB: mongoURI = %s\n", mongoURI)
 		panic(err)
 	}
+	mongoClient = client
 	return client
 }
 func NewDocumentStore(l *log.Logger) *DocumentStore {

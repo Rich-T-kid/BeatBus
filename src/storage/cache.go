@@ -2,9 +2,11 @@ package storage
 
 import (
 	"BeatBus/internal"
+	"context"
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -15,10 +17,17 @@ type messageQueue struct {
 	mu     sync.RWMutex
 }
 
-var cfg = internal.GetConfig()
+var (
+	cfg                = internal.GetConfig()
+	ErrKeyDoesNotExist = fmt.Errorf("key does not exist")
+	rdsClient          *redis.Client // singleton instance
+)
 
 func newRedisClient(redisURI string) *redis.Client {
 	const port = "6379"
+	if rdsClient != nil {
+		return rdsClient
+	}
 	client := redis.NewClient(&redis.Options{
 		Addr:     redisURI + ":" + port,
 		Password: "", // No password set
@@ -30,6 +39,7 @@ func newRedisClient(redisURI string) *redis.Client {
 		fmt.Printf("Failed to ping redis connection: redisURI = %s, port : %s\n", redisURI, port)
 		panic(err)
 	}
+	rdsClient = client
 	return client
 }
 func NewMessageQueue(l *log.Logger) *messageQueue {
@@ -38,4 +48,37 @@ func NewMessageQueue(l *log.Logger) *messageQueue {
 		client: client,
 		logger: l,
 	}
+}
+func (mq *messageQueue) EnsureKeyExists(key string) error {
+	ctx := context.Background()
+	val, err := mq.client.Exists(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+	if val == 0 {
+		return ErrKeyDoesNotExist
+	}
+	return nil
+}
+func (mq *messageQueue) SetKeyWithExpiry(key string, value interface{}, expiration time.Duration) error {
+	ctx := context.Background()
+	mq.mu.Lock()
+	defer mq.mu.Unlock()
+	err := mq.client.Set(ctx, key, value, expiration).Err()
+	if err != nil {
+		mq.logger.Println("Failed to set key in redis:", err)
+		return err
+	}
+	return nil
+}
+func (mq *messageQueue) Incr(key string) error {
+	ctx := context.Background()
+	mq.mu.Lock()
+	defer mq.mu.Unlock()
+	err := mq.client.Incr(ctx, key).Err()
+	if err != nil {
+		mq.logger.Println("Failed to increment key in redis:", err)
+		return err
+	}
+	return nil
 }

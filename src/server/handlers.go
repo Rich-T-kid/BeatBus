@@ -9,13 +9,19 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 )
 
 /* in the future we could make all of these methods of the server struct so that all the logs go to the same place but the doesnt matter too much*/
-func hashPassword(password string) string {
-	hash := sha256.Sum256([]byte(password))
+var (
+	SameSongTimeout        = time.Second * 60 * 5 // user must wait atleast 5 minutes before making a song request again
+	SongInteractionTimeout = time.Second * 3      // user must wait atleast 3 seconds before liking/disliking a song again
+)
+
+func hashStrings(input string) string {
+	hash := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(hash[:])
 }
 
@@ -32,7 +38,7 @@ func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username and password are required", http.StatusBadRequest)
 		return
 	}
-	err = storage.NewDocumentStore(s.documentLogger).InsertNewUser(reqBody.Username, hashPassword(reqBody.Password))
+	err = storage.NewDocumentStore(s.documentLogger).InsertNewUser(reqBody.Username, hashStrings(reqBody.Password))
 	if err != nil {
 		if err == storage.ErrUserNameTaken {
 			http.Error(w, "Username already taken", http.StatusConflict)
@@ -57,7 +63,7 @@ func (s *Server) LogIn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username and password are required", http.StatusBadRequest)
 		return
 	}
-	err = storage.NewDocumentStore(s.documentLogger).ValidateUser(reqBody.Username, hashPassword(reqBody.Password))
+	err = storage.NewDocumentStore(s.documentLogger).ValidateUser(reqBody.Username, hashStrings(reqBody.Password))
 	if err != nil {
 		http.Error(w, "[Invalid Creds] "+err.Error(), http.StatusUnauthorized)
 		return
@@ -217,6 +223,15 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "SongName, ArtistName, AlbumName and AddedBy are required", http.StatusBadRequest)
 			return
 		}
+		requestContents := fmt.Sprintf("%s-%s-%s-%s", reqBody.SongName, reqBody.ArtistName, reqBody.AlbumName, reqBody.AddedBy)
+		hash := hashStrings(requestContents)
+		mq := storage.NewMessageQueue(s.cacheLogger) // Create once, reuse
+		if mq.EnsureKeyExists(hash) == nil {
+			http.Error(w, "You have already added this song to the queue recently, please wait a while before adding it again", http.StatusTooManyRequests)
+			return
+		}
+		s.logger.Printf("setting %s in redis with expiry of %s\n", hash, SongInteractionTimeout.String())
+		go mq.SetKeyWithExpiry(hash, "1", SameSongTimeout)
 		err = storage.NewDocumentStore(s.documentLogger).AddSongToQueue(roomID, map[string]interface{}{
 			"songID": internal.RandomHash(),
 			"stats": map[string]interface{}{
@@ -294,7 +309,16 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "SongID, Action and UserID are required", http.StatusBadRequest)
 			return
 		}
-		err = storage.NewDocumentStore(s.documentLogger).SongOperation(roomID, reqBody.SongID, reqBody.Action, reqBody.UserID)
+		reqContents := fmt.Sprintf(("%s-%s"), reqBody.SongID, reqBody.UserID)
+		hash := hashStrings(reqContents)
+		mq := storage.NewMessageQueue(s.cacheLogger) // Create once, reuse
+		if mq.EnsureKeyExists(hash) == nil {
+			http.Error(w, "You have already performed this action on this song recently, please wait a while before trying again", http.StatusTooManyRequests)
+			return
+		}
+		s.logger.Printf("setting %s in redis with expiry of %s\n", hash, SongInteractionTimeout.String())
+		go mq.SetKeyWithExpiry(hash, "1", SongInteractionTimeout)
+		err = storage.NewDocumentStore(s.documentLogger).SongOperation(roomID, reqBody.SongID, reqBody.UserID, reqBody.Action)
 		if err != nil {
 			switch err {
 			case storage.ErrInvalidSongOperation(reqBody.Action):
@@ -384,6 +408,14 @@ func Cors(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		next.ServeHTTP(w, r)
+	})
+}
+func (s *Server) SimpleLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		go func() {
+			storage.NewMessageQueue(s.cacheLogger).Incr(fmt.Sprintf("%s:%s", r.Method, r.URL.Path)) // keep track of last request time for monitoring purposes
+		}()
 		next.ServeHTTP(w, r)
 	})
 }
