@@ -14,7 +14,6 @@ import (
 )
 
 /* in the future we could make all of these methods of the server struct so that all the logs go to the same place but the doesnt matter too much*/
-
 func hashPassword(password string) string {
 	hash := sha256.Sum256([]byte(password))
 	return hex.EncodeToString(hash[:])
