@@ -18,6 +18,16 @@ tags:
     description: Authentication related endpoints, Login, Register, Refresh token
 
 paths:
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Check the health status of the API.
+      responses:
+        '200':
+          description: API is healthy
   /signUp:
     post:
       tags:
@@ -162,7 +172,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RoomCreate'
+              $ref: '#/components/schemas/RoomUpdate'
       responses:
         '200':
           description: Room Updated Successfully
@@ -563,6 +573,25 @@ components:
           type: integer
           example: 60
           description: The lifetime of the room in minutes.
+        maxUsers:
+          type: integer
+          example: 100
+          description: The maximum number of users allowed in the room.
+        isPublic:
+          type: boolean
+          description: Indicates if the room is public or private.
+
+    RoomUpdate:
+      type: object
+      properties:
+        hostUsername:
+          type: string
+          example: hostUser123
+          description: The username of the host user creating the room.
+        roomName:
+          type: string
+          example: flamingos Palace
+          description: The name of the room.
         maxUsers:
           type: integer
           example: 100

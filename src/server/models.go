@@ -31,6 +31,11 @@ type CreateRoomResponse struct {
 	TimeStamp   int64           `json:"timeStamp"`
 	AccessToken JWT_AccessToken `json:"accessToken"`
 }
+type DeleteRoomRequest struct {
+	HostUsername string `json:"hostUsername"`
+	RoomID       string `json:"roomID"`
+	AccessToken  string `json:"accessToken"`
+}
 
 type RoomProperties struct {
 	RoomID       string `json:"roomID"`
@@ -156,6 +161,10 @@ func (nwr *NotifyUserRequest) Sendmessages(allSongs, mostLiked []interface{}) ma
 	// Implementation for sending messages
 	for _, user := range nwr.UserIds {
 		// validate that the users mean and method is correct
+		if user.Means == "" || user.UserID == "" || user.Method == "" {
+			failed = append(failed, FailNotification{UserID: user.UserID, Reason: "missing means, userID or method"})
+			continue
+		}
 		switch user.Method {
 		case "email":
 			if user.IncludeMostLikedOnly {

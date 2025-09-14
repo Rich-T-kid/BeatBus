@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Port          string
-	MongoURI      string
-	RedisURI      string
-	JWTSecret     string
-	TxtBeltAPIKey string
+	Port           string
+	MongoURI       string
+	RedisURI       string
+	JWTSecret      string
+	TxtBeltAPIKey  string
+	OutputFileName string
 }
 
 var (
@@ -25,11 +26,12 @@ func GetConfig() *Config {
 	once.Do(func() {
 		_ = godotenv.Load()
 		c = &Config{
-			Port:          must("PORT"),
-			MongoURI:      must("MONGO_URI"),
-			JWTSecret:     must("JWT_SECRET"),
-			RedisURI:      must("REDIS_URI"),
-			TxtBeltAPIKey: must("TXT_BELT_API_KEY"),
+			Port:           must("PORT"),
+			MongoURI:       must("MONGO_URI"),
+			JWTSecret:      must("JWT_SECRET"),
+			RedisURI:       must("REDIS_URI"),
+			TxtBeltAPIKey:  must("TXT_BELT_API_KEY"),
+			OutputFileName: must("OUTPUT_FILE_NAME"),
 		}
 	})
 	if c == nil {
