@@ -1,2 +1,27 @@
 .env
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+
+# Redis database
+dump.rdb
+*.rdb
+../dump.rdb
+
+# IDE files
+.vscode/
+.idea/
+
+# OS file
+.DS_Store
+
+
+# Log files
 app.log
+
+src/syncStop/.env
