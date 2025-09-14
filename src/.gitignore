@@ -20,11 +20,6 @@ dump.rdb
 # OS files
 .DS_Store
 
-# Downloaded music files
-downloaded_song.*
-*.mp3
-*.webm
-*.m4a
 
 # Log files
 app.log
