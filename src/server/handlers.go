@@ -230,7 +230,7 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		NewDownloadQueue().RetrieveSong(reqBody)
+		go NewDownloadQueue().RetrieveSong(reqBody)
 		w.WriteHeader(http.StatusCreated)
 	case "GET":
 		// Get current queue
