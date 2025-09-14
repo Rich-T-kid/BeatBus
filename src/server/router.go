@@ -2,6 +2,7 @@ package server
 
 import (
 	"BeatBus/internal"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -12,14 +13,25 @@ import (
 var cfg = internal.GetConfig()
 
 type Server struct {
-	port   string
-	logger *log.Logger
+	port           string
+	documentLogger *log.Logger
+	cacheLogger    *log.Logger
+	logger         *log.Logger
 }
 
 func NewServer() *Server {
+	logFile, err := os.OpenFile(cfg.OutputFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("Failed to open log file (%s) due to error: %v", cfg.OutputFileName, err)
+	}
+
+	// Create MultiWriter to write to both stdout and file
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
 	return &Server{
-		port:   ":" + cfg.Port,
-		logger: log.New(os.Stdout, "[Server] : ", log.Lshortfile|log.Ltime),
+		port:           ":" + cfg.Port,
+		logger:         log.New(multiWriter, "[Server] : ", log.Lshortfile|log.Ltime),
+		documentLogger: log.New(multiWriter, "[DocumentStore] : ", log.Lshortfile|log.Ltime),
+		cacheLogger:    log.New(multiWriter, "[Cache] : ", log.Lshortfile|log.Ltime),
 	}
 }
 func (s *Server) registerMiddleware(r *mux.Router, middleware []mux.MiddlewareFunc) *mux.Router {
@@ -31,7 +43,8 @@ func (s *Server) registerMiddleware(r *mux.Router, middleware []mux.MiddlewareFu
 
 func (s *Server) StartServer() error {
 	middleware := []mux.MiddlewareFunc{
-		//logMiddleware,
+		Cors,
+		s.SimpleLogger,
 	}
 	router := s.registerRoutes()
 	router = s.registerMiddleware(router, middleware)
@@ -50,22 +63,21 @@ func (s *Server) registerRoutes() *mux.Router {
 	}).Methods("GET")
 
 	// Authentication
-	router.HandleFunc("/signUp", SignUp).Methods("POST")
-	router.HandleFunc("/login", LogIn).Methods("POST")
-	router.HandleFunc("/refresh", Refresh).Methods("GET")
+	router.HandleFunc("/signUp", s.SignUp).Methods("POST")
+	router.HandleFunc("/login", s.LogIn).Methods("POST")
 
 	// Rooms
-	router.HandleFunc("/rooms/{roomId}", JoinRoom).Methods("GET")
-	router.HandleFunc("/rooms", Rooms).Methods("POST", "PUT", "DELETE")
-	router.HandleFunc("/rooms/{roomid}/state", RoomState).Methods("GET")
+	router.HandleFunc("/rooms/{roomID}", s.JoinRoom).Methods("GET")
+	router.HandleFunc("/rooms", s.Rooms).Methods("POST", "PUT", "DELETE")
+	router.HandleFunc("/rooms/{roomID}/state", s.RoomState).Methods("GET")
 
 	// Queue
-	router.HandleFunc("/queues/{roomID}/playlist", QueuesPlaylist).Methods("POST", "GET", "PUT")
+	router.HandleFunc("/queues/{roomID}/playlist", s.QueuesPlaylist).Methods("POST", "GET", "PUT")
 
 	// Metrics
-	router.HandleFunc("/metrics/{roomID}", Metrics).Methods("GET", "POST")
-	router.HandleFunc("/metrics/{roomID}/playlist/send", MetricsPlaylistSend).Methods("POST")
-	router.HandleFunc("/metrics/{roomID}/history", MetricsHistory).Methods("GET")
+	router.HandleFunc("/metrics/{roomID}", s.Metrics).Methods("GET", "POST")
+	router.HandleFunc("/metrics/{roomID}/playlist/send", s.MetricsPlaylistSend).Methods("POST")
+	router.HandleFunc("/metrics/{roomID}/history", s.MetricsHistory).Methods("GET")
 
 	return router
 }

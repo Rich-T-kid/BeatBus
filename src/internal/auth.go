@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var cfg = GetConfig()
@@ -16,18 +17,17 @@ type JWTHandler struct{}
 func NewJWTHandler() *JWTHandler {
 	return &JWTHandler{}
 }
-func (j *JWTHandler) CreateToken(username string, exp time.Duration) (string, error) {
-	return " ", nil
+func (j *JWTHandler) CreateToken(username, roomID string, exp time.Duration) string {
+	return issueHostToken(username, roomID, exp)
 }
 func (j *JWTHandler) VerifyToken(tokenString string) error {
 	return verifyToken(tokenString)
 }
 
-func issueHostToken(username, uuid, roomID string, exp time.Duration) (string, error) {
+func issueHostToken(username, roomID string, exp time.Duration) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
 			"username": username,
-			"uuid":     uuid,
 			"iat":      time.Now().Unix(),
 			"exp":      time.Now().Add(exp).Unix(),
 			"iss":      "BeatBus",
@@ -35,12 +35,9 @@ func issueHostToken(username, uuid, roomID string, exp time.Duration) (string, e
 			"room_id":  roomID,
 		})
 
-	tokenString, err := token.SignedString(secretKey)
-	if err != nil {
-		return "", err
-	}
+	tokenString, _ := token.SignedString(secretKey)
 
-	return tokenString, nil
+	return tokenString
 }
 
 func verifyToken(tokenString string) error {
@@ -58,4 +55,8 @@ func verifyToken(tokenString string) error {
 	}
 
 	return nil
+}
+
+func RandomHash() string {
+	return uuid.New().String()
 }

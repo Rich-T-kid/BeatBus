@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package grpc;
+option go_package = ".;pb";
+
+service DownloadService {
+    rpc HealthCheck (HelloRequest) returns (HelloResponse);
+    rpc DownloadSong (DownloadRequest) returns (DownloadResponse);
+}
+
+message DownloadRequest {
+    string song_name = 1;
+    string artist_name = 2;
+    string album_name = 3;
+}
+
+message DownloadResponse {
+    string download_url = 1;
+}
+
+message HelloRequest {
+    string name = 1;
+}
+
+message HelloResponse {
+    string message = 1;
+}

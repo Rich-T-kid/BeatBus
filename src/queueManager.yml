@@ -18,6 +18,16 @@ tags:
     description: Authentication related endpoints, Login, Register, Refresh token
 
 paths:
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Check the health status of the API.
+      responses:
+        '200':
+          description: API is healthy
   /signUp:
     post:
       tags:
@@ -76,28 +86,6 @@ paths:
         '401':
           description: Unauthorized - Invalid username or password
 
-  /refresh:
-    get:
-      tags:
-        - Authentication
-      summary: Token Refresh
-      description: Refresh the authentication token using a valid refresh token.
-      parameters:
-        - in: header
-          name: Authorization
-          schema:
-            type: string
-            example: Bearer <refresh_token>
-          required: true
-          description: The refresh token for obtaining a new authentication token.
-      responses:
-        '200':
-          description: Token refreshed successfully
-        '400':
-          description: Bad Request - Invalid input data
-        '401':
-          description: Unauthorized - Invalid or expired refresh token
-
   /rooms/{roomId}:
     get:
       parameters:
@@ -106,7 +94,15 @@ paths:
           schema:
             type: string
             example: mySecretPassword
-          description: The password for the room, 
+          description: The password for the room.
+          required: true
+        - in: query
+          required: true
+          name: username
+          schema:
+            type: string
+            example: user123
+          description: The username of the user joining the room.
       tags:
         - Rooms
       summary: Join a room by ID
@@ -114,6 +110,8 @@ paths:
       responses:
         '200':
           description: Successful Response
+        '204':
+          description: No Content - user was already in the room
         '400':
           description: Bad Request
         '401':
@@ -130,19 +128,23 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                room:
-                  $ref: '#/components/schemas/RoomCreate'
-                accessToken:
-                  $ref: '#/components/schemas/JWT_AccessToken' 
+              $ref: '#/components/schemas/RoomCreate'
       responses:
         '201':
           description: Room Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoomSuccessfulResponse'
+                type: object
+                properties:
+                  roomProps:
+                    $ref: '#/components/schemas/RoomProperties'
+                  accessToken:
+                    $ref: '#/components/schemas/JWT_AccessToken'
+                  timeStamp:
+                    type: string
+                    format: date-time
+              
         '400':
           description: Bad Request
         '401':
@@ -157,12 +159,20 @@ paths:
         - Host
       summary: Update Room Settings
       description: Update the settings of a room,max users, isPublic, remove guest from your rooms
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RoomCreate'
+              $ref: '#/components/schemas/RoomUpdate'
       responses:
         '200':
           description: Room Updated Successfully
@@ -180,6 +190,14 @@ paths:
         - Host
       summary: Delete a room
       description: Delete a room, only the host can delete the room, kicks everyone out of the room. Returns the user with most liked songs in the session. (Mr put on)
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
@@ -191,10 +209,10 @@ paths:
                   type : string
                   description: The access token of the host user.
                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-                hostId:
+                hostUsername:
                   type: string
                   example: hostUser123
-                  description: The ID of the user who is the host of the room.
+                  description: The username of the user who is the host of the room.
                 roomId:
                   type: string
                   example: 49ca9550ce2e0d
@@ -237,6 +255,10 @@ paths:
                   type: string
                   example: Queen
                   description: The name of the artist of the song to add to the queue.
+                albumName:
+                  type: string
+                  example: A Night at the Opera
+                  description: The name of the album of the song to add to the queue.
                 addedBy:
                   type: string
                   example: user123
@@ -281,6 +303,15 @@ paths:
         - Host
       summary: Reorder the queue, (handles skips)
       description: Reorder the queue by providing a new order of song IDs, This is only for the host. This will be heavily related to the front end. front end must keep the queue order and allow only the host to change the visible order and then send that updated version the backend, Only host and the user who added the song to the queue can skip it
+      #TODO: its very important that the front end is 100% correct for this endpoint or else there will be server bugs
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
@@ -354,7 +385,7 @@ paths:
                   description: The ID of the song being liked/disliked.
                 action:
                   type: string
-                  enum: [like, dislike]
+                  enum: [like, remove-like,dislike,remove-dislike]
                   description: 'Specify "like" to like the song or "dislike" to dislike the song.'
       responses:
         '200':
@@ -372,13 +403,43 @@ paths:
         - Metrics
         - Host
       summary: Send playlist to select users in the room
-      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification.
+      description: Send the playlist (all songs or only most liked) to select users in the room via email or notification. For now only sms works
+      parameters:
+        - in: header
+          name: Authorization
+          schema:
+            type: string
+            example: Bearer <refresh_token>
+          required: true
+          description: The refresh token for obtaining a new authentication token.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PlaylistSendResponse'
+              type: object
+              properties:
+                userIds:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                        example: user123
+                        description: The ID of the user to whom the playlist should be sent.
+                      method:
+                        type: string
+                        example: email | notification
+                        description: The method of sending the playlist (email or notification).
+                      means:
+                        type: string
+                        description: The email address or phone number of the user.
+                        example: user@example.com | 9087654321
+                      includeMostLikedOnly:
+                        type: boolean
+                        description: If true, only the most liked songs will be included in the playlist; otherwise, all songs will be included.
+                  description: An array of user IDs to whom the playlist should be sent.
       responses:
         '200':
           description: Playlist sent successfully
@@ -500,6 +561,10 @@ components:
     RoomCreate:
       type: object
       properties:
+        hostUsername:
+          type: string
+          example: hostUser123
+          description: The username of the host user creating the room.
         roomName:
           type: string
           example: flamingos Palace
@@ -508,6 +573,25 @@ components:
           type: integer
           example: 60
           description: The lifetime of the room in minutes.
+        maxUsers:
+          type: integer
+          example: 100
+          description: The maximum number of users allowed in the room.
+        isPublic:
+          type: boolean
+          description: Indicates if the room is public or private.
+
+    RoomUpdate:
+      type: object
+      properties:
+        hostUsername:
+          type: string
+          example: hostUser123
+          description: The username of the host user creating the room.
+        roomName:
+          type: string
+          example: flamingos Palace
+          description: The name of the room.
         maxUsers:
           type: integer
           example: 100

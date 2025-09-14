@@ -7,9 +7,9 @@ import (
 )
 
 func main() {
-	_ = storage.NewMessageQueue()
+	_ = storage.NewMessageQueue(nil)
 
-	_ = storage.NewDocumentStore("beatbus")
+	_ = storage.NewDocumentStore(nil) // not imporant
 	fmt.Println("Databases are both connected correctly")
 	_ = server.NewServer().StartServer()
 }
