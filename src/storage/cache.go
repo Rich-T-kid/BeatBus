@@ -82,3 +82,24 @@ func (mq *messageQueue) Incr(key string) error {
 	}
 	return nil
 }
+func (mq *messageQueue) UpdateChannel(channel string, message interface{}) error {
+	ctx := context.Background()
+	err := mq.client.Publish(ctx, channel, message).Err()
+	if err != nil {
+		mq.logger.Println("Failed to publish message to channel:", err)
+		return err
+	}
+	mq.logger.Printf("Published message to channel %s: %v\n", channel, message)
+	return nil
+}
+func (mq *messageQueue) SubscribeChannel(channel string) *redis.PubSub {
+	ctx := context.Background()
+	pubsub := mq.client.Subscribe(ctx, channel)
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	if err != nil {
+		mq.logger.Println("Failed to subscribe to channel:", err)
+		return nil
+	}
+	return pubsub
+}

@@ -67,9 +67,9 @@ func (s *Server) registerRoutes() *mux.Router {
 	router.HandleFunc("/login", s.LogIn).Methods("POST")
 
 	// Rooms
-	router.HandleFunc("/rooms/{roomId}", s.JoinRoom).Methods("GET")
+	router.HandleFunc("/rooms/{roomID}", s.JoinRoom).Methods("GET")
 	router.HandleFunc("/rooms", s.Rooms).Methods("POST", "PUT", "DELETE")
-	router.HandleFunc("/rooms/{roomid}/state", s.RoomState).Methods("GET")
+	router.HandleFunc("/rooms/{roomID}/state", s.RoomState).Methods("GET")
 
 	// Queue
 	router.HandleFunc("/queues/{roomID}/playlist", s.QueuesPlaylist).Methods("POST", "GET", "PUT")
