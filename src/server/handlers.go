@@ -171,7 +171,7 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 		}
 		roomid := response["roomProps"].(map[string]interface{})["roomID"].(string)
 		// notify all users in this room that the room settings have been updated
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomid), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomid), genericCheckUpdates)
 		json.NewEncoder(w).Encode(response)
 	case "DELETE":
 		// Delete a room
@@ -200,7 +200,7 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(reqBody.RoomID), endSession) // notify all users in this room that the room has been closed
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(reqBody.RoomID), endSession) // notify all users in this room that the room has been closed
 		json.NewEncoder(w).Encode(map[string]string{"MrPutOn": Winner})
 	}
 }
@@ -289,7 +289,7 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go NewDownloadQueue().RetrieveSong(reqBody)
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
 		w.WriteHeader(http.StatusCreated)
 	case "GET":
 		// Get current queue
@@ -316,7 +316,7 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
 		json.NewEncoder(w).Encode(updatedQueue)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -374,7 +374,7 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -461,6 +461,18 @@ func (s *Server) SimpleLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			storage.NewMessageQueue(s.cacheLogger).Incr(fmt.Sprintf("%s:%s", r.Method, r.URL.Path)) // keep track of last request time for monitoring purposes
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) Recover(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				s.logger.Printf("Recovered from panic: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 		}()
 		next.ServeHTTP(w, r)
 	})

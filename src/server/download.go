@@ -4,6 +4,7 @@ import (
 	pb "BeatBus/internal/grpc"
 	"context"
 	"fmt"
+	"io"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -31,4 +32,9 @@ func (dq *DownloadQueue) RetrieveSong(s AddSongRequest) {
 	})
 	fmt.Printf("Download response: %v\n", resp)
 
+}
+
+func SendToS3(content io.Reader) error {
+	fmt.Println("sending to s3...")
+	return nil
 }

@@ -45,6 +45,7 @@ func (s *Server) StartServer() error {
 	middleware := []mux.MiddlewareFunc{
 		Cors,
 		s.SimpleLogger,
+		s.Recover,
 	}
 	router := s.registerRoutes()
 	router = s.registerMiddleware(router, middleware)
