@@ -42,12 +42,20 @@ type DocumentStore struct {
 	mu     sync.RWMutex
 }
 
+var (
+	mongoClient *mongo.Client
+)
+
 func newMongoClient(mongoURI string) *mongo.Client {
+	if mongoClient != nil {
+		return mongoClient
+	}
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		fmt.Printf("Failed to connect to MongoDB: mongoURI = %s\n", mongoURI)
 		panic(err)
 	}
+	mongoClient = client
 	return client
 }
 func NewDocumentStore(l *log.Logger) *DocumentStore {
@@ -692,4 +700,32 @@ func (ds *DocumentStore) GetRoomsPlaylist(roomID string) ([]interface{}, []inter
 	}
 
 	return sortedQueue, currentQueue, nil
+}
+func (ds *DocumentStore) RoomState(roomID string) (map[string]interface{}, error) {
+	roomColl := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	var room bson.M
+	err := roomColl.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err != nil {
+		return nil, err
+	}
+	// get the song current playing
+	currentQ := room["CurrentQueue"].(primitive.A)
+	var currentSong interface{}
+	if len(currentQ) > 0 {
+		currentSong = currentQ[0]
+	} else {
+		currentSong = nil
+	}
+	if len(currentQ) <= 1 {
+		currentQ = []interface{}{}
+	}
+	return map[string]interface{}{
+		"roomID":        roomID,
+		"currentSong":   currentSong,
+		"queue":         currentQ, // Exclude the currently playing song
+		"numberOfUsers": len(room["usersJoined"].(primitive.A)),
+		"RoomSettings":  room["RoomStats"],
+	}, nil
 }
