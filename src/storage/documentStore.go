@@ -229,7 +229,8 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 	}, nil
 }
 
-func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, lifetime, maxUsers uint, public bool) (map[string]interface{}, error) {
+// TODO: Need to make sure that the maxUsers is not less than the current number of users in the room
+func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, maxUsers uint, public bool) (map[string]interface{}, error) {
 	userColl := ds.db.Collection(UsersCollection)
 	ctx := context.Background()
 
@@ -247,7 +248,6 @@ func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, lifet
 	_, err = roomColl.UpdateOne(ctx, bson.M{"hostID": hostUsername}, bson.M{
 		"$set": bson.M{
 			"RoomStats.name":     roomName,
-			"RoomStats.lifetime": lifetime,
 			"RoomStats.maxUsers": maxUsers,
 			"RoomStats.public":   public,
 		},

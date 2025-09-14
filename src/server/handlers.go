@@ -28,6 +28,10 @@ func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	if reqBody.Username == "" || reqBody.Password == "" {
+		http.Error(w, "Username and password are required", http.StatusBadRequest)
+		return
+	}
 	err = storage.NewDocumentStore(s.documentLogger).InsertNewUser(reqBody.Username, hashPassword(reqBody.Password))
 	if err != nil {
 		if err == storage.ErrUserNameTaken {
@@ -47,6 +51,10 @@ func (s *Server) LogIn(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if reqBody.Username == "" || reqBody.Password == "" {
+		http.Error(w, "Username and password are required", http.StatusBadRequest)
 		return
 	}
 	err = storage.NewDocumentStore(s.documentLogger).ValidateUser(reqBody.Username, hashPassword(reqBody.Password))
@@ -114,6 +122,10 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		if reqBody.HostUserName == "" || reqBody.RoomName == "" || reqBody.LifeTime <= 0 || reqBody.LifeTime > 300 || reqBody.MaxUsers <= 0 {
+			http.Error(w, "HostUserName, RoomName, LifeTime and MaxUsers are required and must be greater than 0. Lifetime must be between 1 and 300 (minutes)", http.StatusBadRequest)
+			return
+		}
 		storage := storage.NewDocumentStore(s.documentLogger)
 		res, err := storage.CreateRoom(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.LifeTime), uint(reqBody.MaxUsers), reqBody.IsPublic)
 		if err != nil {
@@ -124,7 +136,7 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("Received CreateRoom request: %+v\n", reqBody)
 
 	case "PUT":
-		// Update room settings
+		// Update room settings -> user cannot increase/update the room lifetime once its made
 		err := jwtValidation(*r)
 		if err != nil {
 			http.Error(w, "[Invalid Token] "+err.Error(), http.StatusUnauthorized)
@@ -136,7 +148,11 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		response, err := storage.NewDocumentStore(s.documentLogger).UpdateRoomSettings(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.LifeTime), uint(reqBody.MaxUsers), reqBody.IsPublic)
+		if reqBody.HostUserName == "" || reqBody.RoomName == "" || reqBody.MaxUsers <= 0 {
+			http.Error(w, "HostUserName, RoomName, LifeTime and MaxUsers are required and must be greater than 0. Lifetime must be between 1 and 300 (minutes)", http.StatusBadRequest)
+			return
+		}
+		response, err := storage.NewDocumentStore(s.documentLogger).UpdateRoomSettings(reqBody.HostUserName, reqBody.RoomName, uint(reqBody.MaxUsers), reqBody.IsPublic)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -149,17 +165,21 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "[Invalid Token] "+err.Error(), http.StatusUnauthorized)
 			return
 		}
-		var reqBody map[string]string
+		var reqBody DeleteRoomRequest
 		err = json.NewDecoder(r.Body).Decode(&reqBody)
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		if reqBody.HostUsername == "" || reqBody.RoomID == "" || reqBody.AccessToken == "" {
+			http.Error(w, "hostUsername, roomID and accessToken are required", http.StatusBadRequest)
+			return
+		}
 		s.logger.Printf("received DELETE request for room: %+v\n", reqBody)
-		Winner, err := storage.NewDocumentStore(s.documentLogger).DeleteRoom(reqBody["accessToken"], reqBody["hostUsername"], reqBody["roomID"])
+		Winner, err := storage.NewDocumentStore(s.documentLogger).DeleteRoom(reqBody.AccessToken, reqBody.HostUsername, reqBody.RoomID)
 		if err != nil {
 			if err == storage.ErrRoomDoesntExist {
-				http.Error(w, fmt.Sprintf("[The Room you are attempting to delete doesn't exist] -> %s \n check that you have permission to delete this room and that the provided information is correct. \n You may have already deleted this", reqBody["roomID"]), http.StatusNotFound)
+				http.Error(w, fmt.Sprintf("[The Room you are attempting to delete doesn't exist] -> %s \n check that you have permission to delete this room and that the provided information is correct. \n You may have already deleted this", reqBody.RoomID), http.StatusNotFound)
 				return
 			}
 			http.Error(w, err.Error(), http.StatusBadRequest)

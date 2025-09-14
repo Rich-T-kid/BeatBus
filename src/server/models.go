@@ -31,6 +31,11 @@ type CreateRoomResponse struct {
 	TimeStamp   int64           `json:"timeStamp"`
 	AccessToken JWT_AccessToken `json:"accessToken"`
 }
+type DeleteRoomRequest struct {
+	HostUsername string `json:"hostUsername"`
+	RoomID       string `json:"roomID"`
+	AccessToken  string `json:"accessToken"`
+}
 
 type RoomProperties struct {
 	RoomID       string `json:"roomID"`
