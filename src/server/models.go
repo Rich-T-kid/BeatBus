@@ -161,6 +161,10 @@ func (nwr *NotifyUserRequest) Sendmessages(allSongs, mostLiked []interface{}) ma
 	// Implementation for sending messages
 	for _, user := range nwr.UserIds {
 		// validate that the users mean and method is correct
+		if user.Means == "" || user.UserID == "" || user.Method == "" {
+			failed = append(failed, FailNotification{UserID: user.UserID, Reason: "missing means, userID or method"})
+			continue
+		}
 		switch user.Method {
 		case "email":
 			if user.IncludeMostLikedOnly {

@@ -213,6 +213,10 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		if reqBody.SongName == "" || reqBody.ArtistName == "" || reqBody.AlbumName == "" || reqBody.AddedBy == "" {
+			http.Error(w, "SongName, ArtistName, AlbumName and AddedBy are required", http.StatusBadRequest)
+			return
+		}
 		err = storage.NewDocumentStore(s.documentLogger).AddSongToQueue(roomID, map[string]interface{}{
 			"songID": internal.RandomHash(),
 			"stats": map[string]interface{}{
@@ -284,6 +288,10 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if reqBody.SongID == "" || reqBody.Action == "" || reqBody.UserID == "" {
+			http.Error(w, "SongID, Action and UserID are required", http.StatusBadRequest)
 			return
 		}
 		err = storage.NewDocumentStore(s.documentLogger).SongOperation(roomID, reqBody.SongID, reqBody.Action, reqBody.UserID)
