@@ -11,6 +11,7 @@ venv/
 # Redis database
 dump.rdb
 *.rdb
+../dump.rdb
 
 # IDE files
 .vscode/
@@ -24,5 +25,8 @@ downloaded_song.*
 *.mp3
 *.webm
 *.m4a
+
+# Log files
+app.log
 
 src/syncStop/.env
