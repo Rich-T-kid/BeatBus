@@ -223,12 +223,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  MrPutOn:
-                    type: string
-                    example: richard123
-                    description: The ID of the user with the most liked songs in the session.
+                $ref: '#/components/schemas/RoomDeleteResponse'
         '400':
           description: Bad Request
         '401':
@@ -656,7 +651,30 @@ components:
         isPublic:
           type: boolean
           description: Indicates if the room is public or private.
-
+    RoomDeleteResponse:
+      type: object
+      properties:
+        mostDislikedSong:
+          $ref: '#/components/schemas/RoomSongEntry'
+        mostDislikedUser:
+          $ref: '#/components/schemas/UserDislikeSummary'
+        mostLikedSong:
+          $ref: '#/components/schemas/RoomSongEntry'
+        mostLikedUser:
+          $ref: '#/components/schemas/UserLikeSummary'
+          
+    RoomSongEntry:
+      type: object
+      properties:
+        alreadyPlayed:
+          type: boolean
+          example: true
+        position:
+          type: integer
+          format: int32
+          example: 6
+        song:
+          $ref: '#/components/schemas/SongObject'
 
     SongStats:
       type: object
@@ -772,3 +790,27 @@ components:
                 example: "User is not registered to receive the notification through sms/email"
                 description: The reason why the user did not receive the playlist.
           description: List of users who did not receive the playlist.
+
+    UserDislikeSummary:
+      type: object
+      properties:
+        username:
+          type: string
+          example: user102
+        dislikeCount:
+          type: integer
+          format: int32
+          example: 1
+      required: [username, dislikeCount]
+
+    UserLikeSummary:
+      type: object
+      properties:
+        username:
+          type: string
+          example: user102
+        likeCount:
+          type: integer
+          format: int32
+          example: 4
+      required: [username, likeCount]
