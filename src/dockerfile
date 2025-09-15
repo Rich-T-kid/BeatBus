@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 
 RUN go build -o main .
-EXPOSE 8080
+EXPOSE 80
 CMD ["./main"]
 
 
@@ -19,4 +19,4 @@ CMD ["./main"]
 
 # on the ec2 instances run
 # docker pull rich329/beatbus:v1.0.1
-# docker run -d -p 8080:8080 --name beatbus rich329/beatbus:v1.0.1
+# docker run -d -p 80:80 --name beatbus rich329/beatbus:v1.0.1
