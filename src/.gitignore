@@ -25,3 +25,4 @@ dump.rdb
 app.log
 
 src/syncStop/.env
+

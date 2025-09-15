@@ -123,6 +123,7 @@ func (nwr *NotifyUserRequest) sendSMS(userID, phoneNumber string, songData []int
 		"message": {msg},
 		"key":     {cfg.TxtBeltAPIKey},
 	}
+	fmt.Println("values:", values)
 
 	resp, err := http.PostForm(textBeltAPIURL, values)
 	if err != nil {
