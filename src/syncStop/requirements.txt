@@ -1,6 +1,5 @@
 # Core dependencies
-grpcio==1.60.0
-grpcio-tools==1.60.0
+grpcio>=1.74.0
 
 # AWS S3
 boto3==1.40.29
@@ -22,3 +21,6 @@ python-dateutil==2.9.0.post0
 six==1.17.0
 urllib3==2.5.0
 idna==3.10
+
+# Protobuf runtime compatible with generated code
+protobuf==6.31.1
