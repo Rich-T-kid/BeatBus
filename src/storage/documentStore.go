@@ -268,8 +268,8 @@ func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, maxUs
 	duration := time.Since(createdAt.Time())
 	totalMinutes := int(duration.Minutes())
 	seconds := int(duration.Seconds()) % 60
-	fmt.Printf("time since createdAt: %d:%02d\n", totalMinutes, seconds)
-	fmt.Printf("%v\n type: %T\n", room["RoomStats"].(bson.M)["lifetime"], room["RoomStats"].(bson.M)["lifetime"])
+	ds.logger.Printf("time since createdAt: %d:%02d\n", totalMinutes, seconds)
+	ds.logger.Printf("%v\n type: %T\n", room["RoomStats"].(bson.M)["lifetime"], room["RoomStats"].(bson.M)["lifetime"])
 	originalMinutes := room["RoomStats"].(bson.M)["lifetime"].(int64)
 	difference := originalMinutes - int64(totalMinutes)
 	timeLeft := difference
@@ -338,7 +338,7 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (m
 		return nil, ErrNoSongsPlayed
 	}
 	for _, SongEntry := range playedSongs {
-		fmt.Println("SongEntry -> ", SongEntry)
+		ds.logger.Println("SongEntry -> ", SongEntry)
 
 		songMap := SongEntry.(bson.M)
 		song := songMap["song"].(bson.M)
@@ -358,10 +358,10 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (m
 		MostDislikedSong[songID] = dislikes
 
 		infoString := fmt.Sprintf("%s - %s - %s", stats["artist"], stats["title"], stats["album"])
-		fmt.Printf("Artist Info string : %s\n", infoString)
-		fmt.Printf("\n SongID: %s, Likes: %d, Dislikes: %d, AddedBy: %s\n", songID, likes, dislikes, addedBy)
+		ds.logger.Printf("Artist Info string : %s\n", infoString)
+		ds.logger.Printf("\n SongID: %s, Likes: %d, Dislikes: %d, AddedBy: %s\n", songID, likes, dislikes, addedBy)
 	}
-	fmt.Printf(" %v, %v,%v,%v,%v", userLikeCount, userDislikeCount, MostLikedSong, MostDislikedSong, SongTable)
+	ds.logger.Printf(" %v, %v,%v,%v,%v\n", userLikeCount, userDislikeCount, MostLikedSong, MostDislikedSong, SongTable)
 	sortedUserLikes := toSlice(userLikeCount)
 	sortSlice(sortedUserLikes)
 	sortedUserDislikes := toSlice(userDislikeCount)

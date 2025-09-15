@@ -170,7 +170,7 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 		}
 		roomid := response["roomProps"].(map[string]interface{})["roomID"].(string)
 		for k, v := range response {
-			fmt.Printf("response[%s]: %v\n", k, v)
+			s.logger.Printf("response[%s]: %v\n", k, v)
 		}
 		if response["roomProps"].(map[string]interface{})["timeLeft"].(int64) <= 0 {
 			go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomid), endSession) // notify all users in this room that the room has been closed
@@ -410,7 +410,7 @@ func (s *Server) MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("mostLiked: %+v, currentQueue: %+v\n", mostLiked, currentQueue)
+	s.logger.Printf("mostLiked: %+v, currentQueue: %+v\n", mostLiked, currentQueue)
 	resp := reqBody.Sendmessages(mostLiked, currentQueue)
 	if len(resp["failed"].([]FailNotification)) > 0 {
 		w.WriteHeader(http.StatusPartialContent)
