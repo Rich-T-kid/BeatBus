@@ -45,6 +45,7 @@ func (s *Server) StartServer() error {
 	middleware := []mux.MiddlewareFunc{
 		Cors,
 		s.SimpleLogger,
+		s.Recover,
 	}
 	router := s.registerRoutes()
 	router = s.registerMiddleware(router, middleware)
@@ -73,6 +74,7 @@ func (s *Server) registerRoutes() *mux.Router {
 
 	// Queue
 	router.HandleFunc("/queues/{roomID}/playlist", s.QueuesPlaylist).Methods("POST", "GET", "PUT")
+	router.HandleFunc("/queues/{roomID}/nextSong", s.NextSong).Methods("POST")
 
 	// Metrics
 	router.HandleFunc("/metrics/{roomID}", s.Metrics).Methods("GET", "POST")
