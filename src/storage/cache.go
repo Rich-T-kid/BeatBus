@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 	"sync"
 	"time"
 
@@ -102,4 +103,26 @@ func (mq *messageQueue) SubscribeChannel(channel string) *redis.PubSub {
 		return nil
 	}
 	return pubsub
+}
+
+type accumulateResults struct {
+	txt       string
+	sortValue int32
+}
+
+func toSlice(hashTable map[string]int32) []accumulateResults {
+	slice := make([]accumulateResults, 0, len(hashTable))
+	for k, v := range hashTable {
+		slice = append(slice, accumulateResults{
+			txt:       k,
+			sortValue: v,
+		})
+	}
+	return slice
+}
+func sortSlice(slice []accumulateResults) {
+	// Sort using a custom comparison function for descending order
+	slices.SortFunc(slice, func(a, b accumulateResults) int {
+		return int(b.sortValue - a.sortValue) // Descending order
+	})
 }

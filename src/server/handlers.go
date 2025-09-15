@@ -148,7 +148,6 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("Received CreateRoom request: %+v\n", reqBody)
 
 	case "PUT":
-		// Update room settings -> user cannot increase/update the room lifetime once its made
 		err := jwtValidation(*r)
 		if err != nil {
 			http.Error(w, "[Invalid Token] "+err.Error(), http.StatusUnauthorized)
@@ -170,8 +169,15 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		roomid := response["roomProps"].(map[string]interface{})["roomID"].(string)
-		// notify all users in this room that the room settings have been updated
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomid), genericCheckUpdates)
+		for k, v := range response {
+			fmt.Printf("response[%s]: %v\n", k, v)
+		}
+		if response["roomProps"].(map[string]interface{})["timeLeft"].(int64) <= 0 {
+			go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomid), endSession) // notify all users in this room that the room has been closed
+		} else {
+			// notify all users in this room that the room settings have been updated
+			go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomid), genericCheckUpdates)
+		}
 		json.NewEncoder(w).Encode(response)
 	case "DELETE":
 		// Delete a room
@@ -191,7 +197,8 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.logger.Printf("received DELETE request for room: %+v\n", reqBody)
-		Winner, err := storage.NewDocumentStore(s.documentLogger).DeleteRoom(reqBody.AccessToken, reqBody.HostUsername, reqBody.RoomID)
+		// TODO: This should return a map[string]interface{} with the most liked user and other stats
+		endSessionResults, err := storage.NewDocumentStore(s.documentLogger).DeleteRoom(reqBody.AccessToken, reqBody.HostUsername, reqBody.RoomID)
 		if err != nil {
 			if err == storage.ErrRoomDoesntExist {
 				http.Error(w, fmt.Sprintf("[The Room you are attempting to delete doesn't exist] -> %s \n check that you have permission to delete this room and that the provided information is correct. \n You may have already deleted this", reqBody.RoomID), http.StatusNotFound)
@@ -200,8 +207,8 @@ func (s *Server) Rooms(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(reqBody.RoomID), endSession) // notify all users in this room that the room has been closed
-		json.NewEncoder(w).Encode(map[string]string{"MrPutOn": Winner})
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(reqBody.RoomID), endSession) // notify all users in this room that the room has been closed
+		json.NewEncoder(w).Encode(endSessionResults)
 	}
 }
 
@@ -254,7 +261,6 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logger.Printf("Handling playlist for roomID: %s\n", roomID)
 	switch r.Method {
-	//TODO: add more input validation here. if the fields are empty return an error all fields must be present
 	case "POST":
 		var reqBody AddSongRequest
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -289,7 +295,7 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go NewDownloadQueue().RetrieveSong(reqBody)
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
 		w.WriteHeader(http.StatusCreated)
 	case "GET":
 		// Get current queue
@@ -316,7 +322,7 @@ func (s *Server) QueuesPlaylist(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
 		json.NewEncoder(w).Encode(updatedQueue)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -335,7 +341,6 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "GET":
-		// TODO: Mabey could make websocket connection but not the prio right not at all
 		resp, err := storage.NewDocumentStore(s.documentLogger).RoomMetrics(roomID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -343,7 +348,6 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(resp)
 	case "POST":
-		// TODO: This needs to be idempotent
 		var reqBody SongMetricRequest
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
 		if err != nil {
@@ -374,7 +378,7 @@ func (s *Server) Metrics(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+		go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -406,6 +410,7 @@ func (s *Server) MetricsPlaylistSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fmt.Printf("mostLiked: %+v, currentQueue: %+v\n", mostLiked, currentQueue)
 	resp := reqBody.Sendmessages(mostLiked, currentQueue)
 	if len(resp["failed"].([]FailNotification)) > 0 {
 		w.WriteHeader(http.StatusPartialContent)
@@ -430,6 +435,32 @@ func (s *Server) MetricsHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(resp)
+}
+
+// NextSong provides the next song in the queue and removes it from the queue and place it into history
+func (s *Server) NextSong(w http.ResponseWriter, r *http.Request) {
+	roomID := mux.Vars(r)["roomID"]
+	if roomID == "" {
+		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
+		return
+	}
+	if !storage.NewDocumentStore(s.documentLogger).RoomExist(roomID) {
+		http.Error(w, fmt.Sprintf("Room with ID [ %s ] does not exist", roomID), http.StatusNotFound)
+		return
+	}
+	err := storage.NewDocumentStore(s.documentLogger).NextSong(roomID)
+	if err != nil {
+		switch err {
+		case storage.ErrQueueIsEmpty:
+			http.Error(w, "The queue is empty, cannot move to next song", http.StatusNoContent)
+			return
+		default:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	go storage.NewMessageQueue(s.cacheLogger).UpdateChannel(channelString(roomID), genericCheckUpdates)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Handlers
@@ -461,6 +492,18 @@ func (s *Server) SimpleLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			storage.NewMessageQueue(s.cacheLogger).Incr(fmt.Sprintf("%s:%s", r.Method, r.URL.Path)) // keep track of last request time for monitoring purposes
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) Recover(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				s.logger.Printf("Recovered from panic: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 		}()
 		next.ServeHTTP(w, r)
 	})
