@@ -26,6 +26,8 @@ var (
 	ErrInvalidSongOperation             = func(operation string) error {
 		return fmt.Errorf("[%s] is not a valid song action | Valid actions are [like, unlike, dislike, undislike]", operation)
 	}
+	ErrQueueIsEmpty  = fmt.Errorf("the queue is empty")
+	ErrNoSongsPlayed = fmt.Errorf("no songs have been played in this room yet")
 )
 
 const (
@@ -161,7 +163,6 @@ func (ds *DocumentStore) inSession(username string) bool {
 	return inSession
 }
 
-// need to lock b4 calling this but this wont do it by default
 func (ds *DocumentStore) setInSession(username string, inSession bool) error {
 	ctx := context.Background()
 	coll := ds.db.Collection(UsersCollection)
@@ -208,10 +209,10 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 		"usersJoined":  []string{hostUsername},
 		"RoomStats": bson.M{
 			"name":         roomName,
-			"lifetime":     lifetime,
+			"lifetime":     int64(lifetime),
 			"maxUsers":     maxUsers,
 			"public":       public,
-			"created":      time.Now(),
+			"createdAt":    time.Now(),
 			"roomPassword": roomPassword,
 		},
 	})
@@ -237,7 +238,6 @@ func (ds *DocumentStore) CreateRoom(hostUsername, roomName string, lifetime, max
 	}, nil
 }
 
-// TODO: Need to make sure that the maxUsers is not less than the current number of users in the room
 func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, maxUsers uint, public bool) (map[string]interface{}, error) {
 	userColl := ds.db.Collection(UsersCollection)
 	ctx := context.Background()
@@ -263,6 +263,16 @@ func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, maxUs
 	if err != nil {
 		return nil, err
 	}
+	createdAt := room["RoomStats"].(bson.M)["createdAt"].(primitive.DateTime)
+	// Use createdAt here
+	duration := time.Since(createdAt.Time())
+	totalMinutes := int(duration.Minutes())
+	seconds := int(duration.Seconds()) % 60
+	fmt.Printf("time since createdAt: %d:%02d\n", totalMinutes, seconds)
+	fmt.Printf("%v\n type: %T\n", room["RoomStats"].(bson.M)["lifetime"], room["RoomStats"].(bson.M)["lifetime"])
+	originalMinutes := room["RoomStats"].(bson.M)["lifetime"].(int64)
+	difference := originalMinutes - int64(totalMinutes)
+	timeLeft := difference
 	return map[string]interface{}{
 		"roomProps": map[string]interface{}{
 			"roomID":       room["roomID"],
@@ -271,11 +281,13 @@ func (ds *DocumentStore) UpdateRoomSettings(hostUsername, roomName string, maxUs
 			"roomName":     roomName,
 			"maxUsers":     maxUsers,
 			"isPublic":     public,
+			"timeLeft":     timeLeft,
 		},
 		"timeStamp": time.Now().Unix(),
 	}, nil
 }
-func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (string, error) {
+
+func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (map[string]interface{}, error) {
 	RoomsCollection := ds.db.Collection(RoomsCollection)
 	ctx := context.Background()
 
@@ -284,20 +296,90 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (s
 	ds.logger.Printf("Attempting to delete room with roomID=%s by hostUsername=%s\n", roomID, hostUsername)
 	err := RoomsCollection.FindOne(ctx, bson.M{"roomID": roomID, "hostID": hostUsername}).Decode(&room)
 	if err == mongo.ErrNoDocuments {
-		return "", ErrRoomDoesntExist
+		return nil, ErrRoomDoesntExist
 	} else if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Verify accessToken matches
 	if room["accessToken"] != accessToken {
-		return "", fmt.Errorf("invalid access token")
+		return nil, fmt.Errorf("invalid access token")
 	}
+	// (1) get the user with the most likes across all the songs,
+	// (2) and the user with the most likes on any given song,
+	// (3) user with most dislikes,
+	// (4) user with most disliked song
+	playedSongs := room["playedSongs"].(primitive.A)
+	userLikeCount := make(map[string]int32)    // user:like count
+	userDislikeCount := make(map[string]int32) // user:dislike count
+	MostLikedSong := make(map[string]int32)    // songID:like count
+	MostDislikedSong := make(map[string]int32) // songID:dislike count
+	SongTable := make(map[string]interface{})  // songID:song object
+	type resultStruct struct {
+		MostLikedUser    string
+		MostDislikedUser string
+		MostLikedSong    interface{}
+		MostDislikedSong interface{}
+	}
+	var result resultStruct
+	if len(playedSongs) > 0 {
+		SongEntry := playedSongs[0]
+		songMap := SongEntry.(bson.M)
+		song := songMap["song"].(bson.M)
+		metadata := song["metadata"].(bson.M)
+		//stats := song["stats"].(bson.M)
+
+		addedBy := metadata["addedBy"].(string)
+		result.MostLikedSong = addedBy
+		result.MostDislikedSong = addedBy
+		result.MostLikedSong = SongEntry
+		result.MostDislikedSong = SongEntry
+	} else {
+		return nil, ErrNoSongsPlayed
+	}
+	for _, SongEntry := range playedSongs {
+		ds.logger.Println("SongEntry -> ", SongEntry)
+
+		songMap := SongEntry.(bson.M)
+		song := songMap["song"].(bson.M)
+		metadata := song["metadata"].(bson.M)
+		stats := song["stats"].(bson.M)
+
+		// Extract the values
+		songID := song["songId"].(string)
+		likes := metadata["likes"].(int32)
+		dislikes := metadata["dislikes"].(int32)
+		addedBy := metadata["addedBy"].(string)
+
+		SongTable[songID] = SongEntry
+		userLikeCount[addedBy] += likes
+		userDislikeCount[addedBy] += dislikes
+		MostLikedSong[songID] = likes
+		MostDislikedSong[songID] = dislikes
+
+		infoString := fmt.Sprintf("%s - %s - %s", stats["artist"], stats["title"], stats["album"])
+		ds.logger.Printf("Artist Info string : %s\n", infoString)
+		ds.logger.Printf("\n SongID: %s, Likes: %d, Dislikes: %d, AddedBy: %s\n", songID, likes, dislikes, addedBy)
+	}
+	ds.logger.Printf(" %v, %v,%v,%v,%v\n", userLikeCount, userDislikeCount, MostLikedSong, MostDislikedSong, SongTable)
+	sortedUserLikes := toSlice(userLikeCount)
+	sortSlice(sortedUserLikes)
+	sortedUserDislikes := toSlice(userDislikeCount)
+	sortSlice(sortedUserDislikes)
+	mostLikedSorted := toSlice(MostLikedSong)
+	sortSlice(mostLikedSorted)
+	mostDislikedSorted := toSlice(MostDislikedSong)
+	sortSlice(mostDislikedSorted)
+	//
+	result.MostLikedUser = sortedUserLikes[0].txt
+	result.MostDislikedUser = sortedUserDislikes[0].txt
+	result.MostLikedSong = SongTable[mostLikedSorted[0].txt]
+	result.MostDislikedSong = SongTable[mostDislikedSorted[0].txt]
+
 	err = RoomsCollection.FindOneAndDelete(ctx, bson.M{"roomID": roomID}).Err()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
 	// Set host user's inSession to false
 	err = ds.setInSession(hostUsername, false)
 	if err != nil {
@@ -312,7 +394,18 @@ func (ds *DocumentStore) DeleteRoom(accessToken, hostUsername, roomID string) (s
 		ds.logger.Printf("failed to update previousSessions for user %s: %v\n", hostUsername, err)
 		// Not returning error here because room deletion was successful
 	}
-	return "TBD Still need to develop user liking songs and stuff for the most liked user", nil
+	return map[string]interface{}{
+		"mostLikedUser": map[string]interface{}{
+			"username":   result.MostLikedUser,
+			"like Count": sortedUserLikes[0].sortValue,
+		},
+		"mostDislikedUser": map[string]interface{}{
+			"username":      result.MostDislikedUser,
+			"dislike Count": sortedUserDislikes[0].sortValue,
+		},
+		"mostLikedSong":    result.MostLikedSong,
+		"mostDislikedSong": result.MostDislikedSong,
+	}, nil
 }
 func (ds *DocumentStore) RoomExist(roomID string) bool {
 	ds.mu.RLock()
@@ -472,6 +565,25 @@ func (ds *DocumentStore) SongOperation(roomID, songID, userID, operation string)
 		return ErrInvalidSongOperation(operation)
 	}
 	ds.logger.Printf("%s is Performing operation '%s' on songs in room '%s'\n", userID, operation, roomID)
+	// dont want the this holding up the main operation
+	if userID == room["hostID"] {
+		go func() {
+			userInfoColl := ds.db.Collection(UserInfoCollection)
+			if operation == "like" {
+				_, err := userInfoColl.UpdateOne(ctx, bson.M{"userID": userID}, bson.M{"$addToSet": bson.M{"liked_songs": songID}})
+				if err != nil {
+					ds.logger.Printf("Failed to update user info for %s: %v\n", userID, err)
+				}
+			}
+			if operation == "dislike" {
+				_, err := userInfoColl.UpdateOne(ctx, bson.M{"userID": userID}, bson.M{"$addToSet": bson.M{"disliked_songs": songID}})
+				if err != nil {
+					ds.logger.Printf("Failed to update user info for %s: %v\n", userID, err)
+				}
+			}
+		}()
+
+	}
 	switch operation {
 	case "like":
 		_, err = roomCol.UpdateOne(ctx,
@@ -655,7 +767,7 @@ func (ds *DocumentStore) GetRoomsPlaylist(roomID string) ([]interface{}, []inter
 		return nil, nil, err
 	}
 
-	currentQueue := room["CurrentQueue"].(primitive.A)
+	currentQueue := room["playedSongs"].(primitive.A)
 	var songsWithLikes []SongWithLikes
 	for _, songMap := range currentQueue {
 		if songMap == nil {
@@ -728,4 +840,47 @@ func (ds *DocumentStore) RoomState(roomID string) (map[string]interface{}, error
 		"numberOfUsers": len(room["usersJoined"].(primitive.A)),
 		"RoomSettings":  room["RoomStats"],
 	}, nil
+}
+
+func (ds *DocumentStore) NextSong(roomID string) error {
+	roomCol := ds.db.Collection(RoomsCollection)
+	ctx := context.Background()
+
+	// Find the room
+	var room bson.M
+	err := roomCol.FindOne(ctx, bson.M{"roomID": roomID}).Decode(&room)
+	if err != nil {
+		return err
+	}
+
+	// Get the current queue
+	currentQ := room["CurrentQueue"].(primitive.A)
+	if len(currentQ) == 0 {
+		return ErrQueueIsEmpty
+	}
+
+	// Move the first song to the played songs
+	playedSong := currentQ[0]
+	if len(currentQ) >= 2 {
+		currentQ = currentQ[1:]
+	} else {
+		currentQ = []interface{}{}
+	}
+
+	// Mark the song as already played
+	playedSong.(primitive.M)["alreadyPlayed"] = true
+
+	// Update the room
+	_, err = roomCol.UpdateOne(ctx, bson.M{"roomID": roomID}, bson.M{"$set": bson.M{"CurrentQueue": currentQ}})
+	if err != nil {
+		return err
+	}
+
+	// Add the played song to the played songs
+	_, err = roomCol.UpdateOne(ctx, bson.M{"roomID": roomID}, bson.M{"$push": bson.M{"playedSongs": playedSong}})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

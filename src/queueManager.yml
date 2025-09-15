@@ -233,7 +233,24 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
-
+  /queues/{roomID}/nextSong:
+    post:
+      tags:
+        - Queue
+      summary: Get next song from queue
+      description: Provides the next song in the queue and removes it from the queue and places it into history
+      responses:
+        '200':
+          description: Next song retrieved successfully
+        '204':
+          description: No Content - The queue is empty
+        '404':
+          description: Invalid room ID provided
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Room not found"
   /queues/{roomID}/playlist:
     post:
       tags:
