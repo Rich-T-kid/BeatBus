@@ -19,8 +19,12 @@ RUN pip install --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd --create-home appuser
+# Copy cookies file
+COPY cookies.txt /app/
+
+# Create non-root user and fix permissions
+RUN useradd --create-home appuser && \
+    chown -R appuser:appuser /app
 USER appuser
 
 # Expose gRPC port

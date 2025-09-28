@@ -10,6 +10,7 @@ def scrape_song(song_name, artist_name, album_name):
         'outtmpl': 'downloaded_song.%(ext)s',  # Save in current directory
         'restrictfilenames': True,  # Remove spaces and special characters
         'nocheckcertificate': True,  # Bypass SSL certificate verification
+        'cookiefile': '/app/cookies.txt',  # Use cookie file
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
