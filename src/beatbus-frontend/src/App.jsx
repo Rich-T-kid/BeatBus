@@ -9,7 +9,6 @@ import JoinRoom from './pages/JoinRoom'
 import Room from './pages/Room'
 import RoomMetrics from './pages/RoomMetrics'
 import ProtectedRoute from './components/auth/ProtectedRoute'
-import './styles/globals.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +23,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+          {window.DEMO_MODE && (
+            <div className="bg-yellow-500 text-yellow-900 px-4 py-2 text-center text-sm font-medium sticky top-0 z-50">
+              🎵 Demo Mode - UI Preview with Mock Data (No Backend Required)
+            </div>
+          )}
+          
           <Toaster 
             position="top-right"
             toastOptions={{
@@ -42,7 +47,6 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/join" element={<JoinRoom />} />
               
-              {/* Protected Routes */}
               <Route path="/create" element={
                 <ProtectedRoute>
                   <CreateRoom />

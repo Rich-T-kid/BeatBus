@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import { Music, Users, Clock, Lock, Globe } from 'lucide-react'
-import QRCode from 'qrcode.react'
+import { QRCodeSVG } from 'qrcode.react'
 import useAuthStore from '../store/authStore'
 import { roomAPI } from '../services/api'
 import Input from '../components/ui/Input'
@@ -152,7 +152,7 @@ const CreateRoom = () => {
         >
           <div className="text-center">
             <div className="bg-white p-4 rounded-lg inline-block mb-4">
-              <QRCode
+              <QRCodeSVG
                 value={getRoomJoinUrl()}
                 size={200}
                 level="M"
