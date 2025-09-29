@@ -12,35 +12,39 @@ const Home = () => {
     {
       icon: <Users className="w-8 h-8" />,
       title: "Real-time Collaboration",
-      description: "Create rooms and invite friends to build playlists together"
+      description: "Create rooms and invite friends to build playlists together",
+      color: "blue"
     },
     {
       icon: <Heart className="w-8 h-8" />,
       title: "Vote on Music",
-      description: "Like and dislike songs to influence what plays next"
+      description: "Like and dislike songs to influence what plays next",
+      color: "green"
     },
     {
       icon: <QrCode className="w-8 h-8" />,
       title: "Easy Joining",
-      description: "Join rooms instantly with QR codes - no signup required"
+      description: "Join rooms instantly with QR codes - no signup required",
+      color: "blue"
     },
     {
       icon: <Sparkles className="w-8 h-8" />,
       title: "Session Analytics",
-      description: "Get insights and export your favorite tracks"
+      description: "Get insights and export your favorite tracks",
+      color: "green"
     }
   ]
 
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-600">
-        <div className="absolute inset-0 bg-black/10"></div>
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
+        <div className="absolute inset-0 bg-black/20"></div>
         
         {/* Animated background elements */}
         <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/5 rounded-full blur-3xl animate-pulse-slow"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary-400/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }}></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s', animationDuration: '4s' }}></div>
         </div>
         
         <div className="relative max-w-7xl mx-auto px-4 py-24 sm:px-6 lg:px-8">
@@ -58,9 +62,9 @@ const Home = () => {
             >
               <div className="relative">
                 <Music className="w-16 h-16 text-white" />
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-secondary-400 rounded-full animate-bounce"></div>
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-400 rounded-full animate-bounce"></div>
               </div>
-              <h1 className="ml-4 text-5xl sm:text-6xl font-display font-bold text-white">
+              <h1 className="ml-4 text-5xl sm:text-6xl font-bold text-white">
                 BeatBus
               </h1>
             </motion.div>
@@ -93,7 +97,7 @@ const Home = () => {
               {isAuthenticated ? (
                 <Link
                   to="/create"
-                  className="inline-flex items-center bg-white text-primary-600 hover:bg-gray-100 text-lg px-8 py-4 rounded-xl font-semibold transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="inline-flex items-center bg-white text-slate-900 hover:bg-gray-100 text-lg px-8 py-4 rounded-xl font-semibold transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   <Play className="w-5 h-5 mr-2" />
                   Create Room
@@ -101,7 +105,7 @@ const Home = () => {
               ) : (
                 <Link
                   to="/login"
-                  className="inline-flex items-center bg-white text-primary-600 hover:bg-gray-100 text-lg px-8 py-4 rounded-xl font-semibold transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="inline-flex items-center bg-white text-slate-900 hover:bg-gray-100 text-lg px-8 py-4 rounded-xl font-semibold transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   <Play className="w-5 h-5 mr-2" />
                   Get Started
@@ -110,7 +114,7 @@ const Home = () => {
               
               <Link
                 to="/join"
-                className="inline-flex items-center border-2 border-white text-white hover:bg-white hover:text-primary-600 text-lg px-8 py-4 rounded-xl font-semibold transform hover:scale-105 transition-all duration-200"
+                className="inline-flex items-center border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white hover:text-slate-900 text-lg px-8 py-4 rounded-xl font-semibold transform hover:scale-105 transition-all duration-200"
               >
                 <QrCode className="w-5 h-5 mr-2" />
                 Join Room
@@ -130,7 +134,7 @@ const Home = () => {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl font-display font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
               Why Choose BeatBus?
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
@@ -149,7 +153,9 @@ const Home = () => {
                 whileHover={{ y: -5 }}
                 className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center hover:shadow-lg transition-all duration-200"
               >
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 text-primary-600 rounded-xl mb-4">
+                <div className={`inline-flex items-center justify-center w-16 h-16 ${
+                  feature.color === 'blue' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'
+                } rounded-xl mb-4`}>
                   {feature.icon}
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -174,7 +180,7 @@ const Home = () => {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl font-display font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
               How It Works
             </h2>
             <p className="text-xl text-gray-600">
@@ -187,17 +193,20 @@ const Home = () => {
               {
                 step: "01",
                 title: "Create or Join",
-                description: "Host creates a room or guests join with a QR code"
+                description: "Host creates a room or guests join with a QR code",
+                color: "blue"
               },
               {
                 step: "02", 
                 title: "Add Music",
-                description: "Everyone adds their favorite songs to the shared queue"
+                description: "Everyone adds their favorite songs to the shared queue",
+                color: "green"
               },
               {
                 step: "03",
                 title: "Vote & Enjoy",
-                description: "Vote on tracks and enjoy music together in real-time"
+                description: "Vote on tracks and enjoy music together in real-time",
+                color: "blue"
               }
             ].map((item, index) => (
               <motion.div
@@ -208,7 +217,9 @@ const Home = () => {
                 viewport={{ once: true }}
                 className="text-center"
               >
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-secondary-100 text-secondary-600 rounded-full text-2xl font-bold mb-4">
+                <div className={`inline-flex items-center justify-center w-16 h-16 ${
+                  item.color === 'blue' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                } rounded-full text-2xl font-bold mb-4`}>
                   {item.step}
                 </div>
                 <h3 className="text-2xl font-semibold text-gray-900 mb-4">
@@ -224,7 +235,7 @@ const Home = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-r from-secondary-600 to-primary-600">
+      <section className="py-24 bg-gradient-to-r from-blue-600 to-green-600">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -232,7 +243,7 @@ const Home = () => {
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl font-display font-bold text-white mb-4">
+            <h2 className="text-4xl font-bold text-white mb-4">
               Ready to Start Your Musical Journey?
             </h2>
             <p className="text-xl text-white/90 mb-8">
@@ -245,7 +256,7 @@ const Home = () => {
             >
               <Link
                 to={isAuthenticated ? "/create" : "/login"}
-                className="inline-flex items-center bg-white text-primary-600 hover:bg-gray-100 px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-200 shadow-lg"
+                className="inline-flex items-center bg-white text-slate-900 hover:bg-gray-100 px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-200 shadow-lg"
               >
                 Get Started Now
                 <Play className="w-5 h-5 ml-2" />
